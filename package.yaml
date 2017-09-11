@@ -1,0 +1,18 @@
+name: simformat
+
+ghc-options:
+- -Wall
+- -Werror
+- -fwarn-tabs
+- -O2
+
+dependencies:
+- base
+- doctest
+- lens
+- megaparsec
+
+executables:
+  simformat:
+    main: main.hs
+    source-dirs: ./
