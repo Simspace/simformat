@@ -36,7 +36,7 @@ parseList p = parens $ commaSep p
 -- >>> parseMaybe operator "(<$>)"
 -- Just "(<$>)"
 operator :: Parser String
-operator = concat <$> sequence [ptoken "(", many $ oneOf ("|:<>?/=.$&*^" :: [Char]), ptoken ")"]
+operator = concat <$> sequence [ptoken "(", many $ oneOf ("|:<>?/=.$&*^!" :: [Char]), ptoken ")"]
 
 -- |
 -- >>> parseMaybe symbol "_Identity"
