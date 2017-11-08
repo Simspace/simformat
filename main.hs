@@ -217,6 +217,8 @@ renderList indent renderItem xs0 | null xs0        = Left "()"
 -- |import qualified Data.Map as Map
 -- >>> test "import Data.Maybe (catMaybes, fromMaybe, isJust)"
 -- |import Data.Maybe (catMaybes, fromMaybe, isJust)
+-- >>> test "import OrphanInstances ()"
+-- |import OrphanInstances ()
 -- 
 -- Longer import lists are split onto multiple lines, keeping groups together:
 --
