@@ -12,7 +12,6 @@ default-extensions:
 dependencies:
 - base
 - containers
-- doctest
 - megaparsec
 
 executables:
@@ -23,3 +22,5 @@ executables:
 tests:
   simformat-doctests:
     main: doctests.hs
+    dependencies:
+    - doctest
