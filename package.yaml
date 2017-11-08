@@ -13,7 +13,6 @@ dependencies:
 - base
 - containers
 - doctest
-- lens
 - megaparsec
 
 executables:
