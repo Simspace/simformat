@@ -107,12 +107,15 @@ parseImportGroup name = ImportGroup name
 
 -- Sorting
 
+-- The key type is carefully chosen so `Map.toList` puts the qualified imports at the bottom,
+-- and then sorts by module name.
 newtype SortedImportStmts = SortedImportStmts
   { unSortedImportStmts :: Map (Bool, String, Maybe String) SortedImportList
   }
   deriving Show
 
--- @Right ()@ is the key of a fake group whose items are the atoms.
+-- The key type is carefully chosen so `Map.toList` puts the groups at the top, then sorts by name.
+-- The @Right ()@ key is a fake group whose items are the atoms.
 newtype SortedImportList = SortedImportList
   { unSortedImportList :: Map (Either String ()) (Set String)
   }
