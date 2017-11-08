@@ -270,14 +270,6 @@ renderGroupList :: [String] -> String
 renderGroupList = either id (('\n':) . intercalate "\n")
                 . renderList "    " id
 
-groupLines :: [String] -> [String]
-groupLines ls = go [] ls
-  where
-    go [] (x:xs) = go x xs
-    go cur [] = [cur]
-    go cur (x:xs) | length (cur <> x) > 100 = cur : go [] (x:xs)
-    go cur (x:xs) = go (cur <> x) xs
-
 main :: IO ()
 main = do
   contents <- getContents
