@@ -6,11 +6,11 @@ It produces import lists that look like this:
 
 ```haskell
 import Range.Shared.Types
-  ( ExternalEntities, ExternalRef(..), Imports(Imports), IsSpecEntity, ResolvedSpec
-  , SomeExternalRef(SomeExternalRef), SpecEntities, SpecEntity(..)
-  , SpecRef(SpecRefExternal, SpecRefLocal), VmRepetitionGroup, VmRgTag, importsConfigModuleDefs
-  , importsOperatingSystems, importsVmTemplates, specEntitiesConfigModuleDefs
-  , specEntitiesOperatingSystems, specEntitiesVmTemplates, specEntity, specificationEntities
+  ( ExternalRef(..), Imports(Imports), SomeExternalRef(SomeExternalRef), SpecEntity(..)
+  , SpecRef(SpecRefExternal, SpecRefLocal), ExternalEntities, IsSpecEntity, ResolvedSpec
+  , SpecEntities, VmRepetitionGroup, VmRgTag, importsConfigModuleDefs, importsOperatingSystems
+  , importsVmTemplates, specEntitiesConfigModuleDefs, specEntitiesOperatingSystems
+  , specEntitiesVmTemplates, specEntity, specificationEntities
   )
 ```
 

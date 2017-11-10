@@ -6,13 +6,21 @@ ghc-options:
 - -fwarn-tabs
 - -O2
 
+default-extensions:
+- RecordWildCards
+
 dependencies:
 - base
-- doctest
-- lens
+- containers
 - megaparsec
 
 executables:
   simformat:
     main: main.hs
     source-dirs: ./
+
+tests:
+  simformat-doctests:
+    main: doctests.hs
+    dependencies:
+    - doctest
