@@ -45,7 +45,10 @@ parseList p = parens $ commaSep p
 -- >>> parseMaybe operator "(<$>)"
 -- Just "(<$>)"
 operator :: Parser String
-operator = concat <$> sequence [ptoken "(", some $ oneOf ("|:<>?/=.$&*^!" :: [Char]), ptoken ")"]
+operator = concat <$> sequence [ptoken "(", some $ oneOf symbolChars, ptoken ")"]
+
+symbolChars :: String
+symbolChars = "!#$%&*+./<=>?@^|-~:\\"
 
 -- |
 -- >>> parseMaybe symbol "_Identity"
@@ -213,7 +216,7 @@ renderList indent renderItem xs0 | null xs0        = Left "()"
 
 -- |
 -- >>> let test = putStr . unlines . map ('|':) . lines . intercalate "\n" . map renderImportStmt . sortImportStmts . fromJust . parseMaybe (some parseImportStmt)
--- 
+--
 -- Short import lists are kept on a single line:
 --
 -- >>> test "import qualified Data.Map as Map"
@@ -222,7 +225,7 @@ renderList indent renderItem xs0 | null xs0        = Left "()"
 -- |import Data.Maybe (catMaybes, fromMaybe, isJust)
 -- >>> test "import OrphanInstances ()"
 -- |import OrphanInstances ()
--- 
+--
 -- Longer import lists are split onto multiple lines, keeping groups together:
 --
 -- >>> test "import FooBar (baz17, baz18, baz01, baz02, baz03, baz04, baz05, baz06, baz07, baz08, baz09, baz10, baz11, baz12, baz13, baz14, baz15, baz16, Foo(foo7, foo8, foo9, foo1, foo2, foo3, foo4, foo5, foo6), Bar(bar7, bar8, bar9, bar1, bar2, bar3, bar4, bar5, bar6), baz19, baz20)"
