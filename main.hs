@@ -45,7 +45,10 @@ parseList p = parens $ commaSep p
 -- >>> parseMaybe operator "(<$>)"
 -- Just "(<$>)"
 operator :: Parser String
-operator = concat <$> sequence [ptoken "(", some $ oneOf ("|:<>?/=.$&*^!-" :: [Char]), ptoken ")"]
+operator = concat <$> sequence [ptoken "(", some $ oneOf symbolChars, ptoken ")"]
+
+symbolChars :: String
+symbolChars = "!#$%&*+./<=>?@^|-~:\\"
 
 -- |
 -- >>> parseMaybe symbol "_Identity"
