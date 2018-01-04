@@ -12,7 +12,7 @@ default-extensions:
 dependencies:
 - base
 - containers
-- megaparsec
+- megaparsec >= 6.0.0
 
 executables:
   simformat:
