@@ -94,6 +94,8 @@ data ImportGroup = ImportGroup
 -- Just (ImportStmt {importStmtQualified = False, importStmtModuleName = "Data.Monoid", importStmtAlias = Nothing, importStmtImportList = Just [ImportEntryGroup (ImportGroup {importGroupName = "Monoid", importGroupList = [".."]}),ImportEntryAtom "(<>)"]})
 -- >>> parseMaybe parseImportStmt "import OrphanInstances ()"
 -- Just (ImportStmt {importStmtQualified = False, importStmtModuleName = "OrphanInstances", importStmtAlias = Nothing, importStmtImportList = Just []})
+-- >>> isJust $ parseMaybe parseImportStmt "import Foo hiding (Bar, (+))"
+-- True
 parseImportStmt :: Parser ImportStmt
 parseImportStmt = ImportStmt
               <$> ( ptoken "import"
@@ -293,4 +295,3 @@ main = do
     output nonImports (imports, rest) =
       putStr . unlines $ nonImports <> (map renderImportStmt $ sortImportStmts imports) <> ["",rest]
     notifyError e = hPutStrLn stderr (parseErrorPretty e) >> exitFailure
-
