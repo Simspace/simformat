@@ -280,6 +280,9 @@ renderGroupList :: [String] -> String
 renderGroupList = either id (('\n':) . intercalate "\n")
                 . renderList "    " id
 
+-- NB. if there is a commented line (or block comment) in the middle of an import block,
+-- 'many parseImportStmt' will not cope with it, and only the imports before the comment
+-- will be processed.
 main :: IO ()
 main = do
   (nonimports, importsAndAfter) <- span (not . ("import " `isPrefixOf`)) . lines <$> getContents
