@@ -1,12 +1,14 @@
 module Main where
 
 import Data.Bool (bool)
-import Data.List (intercalate)
+import Data.List (intercalate, isPrefixOf)
 import Data.Map (Map)
 import Data.Maybe (isJust)
 import Data.Monoid ((<>))
 import Data.Set (Set)
 import Data.Void (Void)
+import System.Exit (exitFailure)
+import System.IO (hPutStrLn, stderr)
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import Text.Printf (printf)
@@ -280,7 +282,12 @@ renderGroupList = either id (('\n':) . intercalate "\n")
 
 main :: IO ()
 main = do
-  contents <- getContents
-  case parse (many parseImportStmt) "" contents of
-    Left e -> putStr (parseErrorPretty e)
-    Right c -> putStrLn . intercalate "\n" . map renderImportStmt . sortImportStmts $ c
+  (nonimports, importsAndAfter) <- span (not . ("import " `isPrefixOf`)) . lines <$> getContents
+  either notifyError (output nonimports) $ parse importsAndRest "" (unlines importsAndAfter)
+
+  where
+    importsAndRest = (,) <$> many parseImportStmt <*> takeRest
+    output nonImports (imports, rest) =
+      putStr . unlines $ nonImports <> (map renderImportStmt $ sortImportStmts imports) <> ["",rest]
+    notifyError e = hPutStrLn stderr (parseErrorPretty e) >> exitFailure
+

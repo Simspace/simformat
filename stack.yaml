@@ -3,7 +3,8 @@ resolver: lts-10.2
 packages:
 - .
 
-extra-deps: []
+extra-deps:
+- megaparsec-6.3.0
 
 flags: {}
 
