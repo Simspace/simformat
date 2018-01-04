@@ -1,12 +1,14 @@
 module Main where
 
 import Data.Bool (bool)
-import Data.Maybe (isJust)
-import Data.Monoid ((<>))
 import Data.List (intercalate)
 import Data.Map (Map)
+import Data.Maybe (isJust)
+import Data.Monoid ((<>))
 import Data.Set (Set)
+import Data.Void (Void)
 import Text.Megaparsec
+import Text.Megaparsec.Char
 import Text.Printf (printf)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -16,7 +18,7 @@ import qualified Data.Set as Set
 
 -- General parsing
 
-type Parser = Parsec Dec String
+type Parser = Parsec Void String
 
 comma :: Parser String
 comma = string ","
