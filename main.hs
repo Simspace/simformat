@@ -259,7 +259,16 @@ renderList indent renderItem xs0 | null xs0        = Left "()"
 -- >>> test "import Foo hiding (Bar)\nimport Baz\nimport Foo hiding (quux)"
 -- |import Baz
 -- |import Foo
-
+--
+-- Hiding wins over imports
+-- >>> test "import Foo hiding (Bar)\nimport Foo(baz)\n"
+-- |import Foo hiding (Bar)
+--
+-- Hiding imports go first, then normal imports, then qualified
+-- >>> test "import qualified Foo\nimport Bar hiding(baz)\nimport Quux"
+-- |import Bar hiding (baz)
+-- |import Quux
+-- |import qualified Foo
 
 renderImportStmt :: ImportStmt -> String
 renderImportStmt ImportStmt {..} = "import"
