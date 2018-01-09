@@ -2,21 +2,18 @@
 module Main(main) where
 
 import Data.Bool (bool)
+import Data.Char (isSpace)
 import Data.List (intercalate, isPrefixOf)
 import Data.Map (Map)
 import Data.Maybe (isJust)
 import Data.Semigroup ((<>), Semigroup)
 import Data.Set (Set)
 import Data.Void (Void)
-import System.Exit (exitFailure)
-import System.IO (hPutStrLn, stderr)
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import Text.Printf (printf)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-
--- import Data.Monoid (mappend)
 
 type Parser = Parsec Void String
 
@@ -118,7 +115,7 @@ symbol :: Parser String
 symbol = padded $ operator <|> some (alphaNumChar <|> oneOf ("._'" :: String))
 
 parseImportBlock :: Parser SortedImportStmts
-parseImportBlock = toSortedImportStmts <$> many parseImportStmt
+parseImportBlock = toSortedImportStmts <$> some parseImportStmt
 
 -- |
 -- >>> parseMaybe parseImportStmt "import qualified Data.Map as Map"
@@ -301,18 +298,37 @@ renderGroupList :: Set String -> String
 renderGroupList = either id (('\n':) . intercalate "\n")
                 . renderList "    " id . Set.toAscList
 
--- NB. if there is a commented line (or block comment) in the middle of an import block,
--- 'many parseImportStmt' will not cope with it, and only the imports before the comment
--- will be processed.
 main :: IO ()
 main = do
   (nonimports, importsAndAfter) <- break ("import " `isPrefixOf`) . lines <$> getContents
-  either notifyError (output nonimports) $ parse importsAndRest "" (unlines importsAndAfter)
+  output nonimports $ untilLeft (parse ((,) <$> parseImportBlock <*> takeRest) "")  (chunkedInputs importsAndAfter)
 
   where
-    importsAndRest = (,) <$> parseImportBlock <*> takeRest
-    output nonImports (imports, rest) =
-      putStr . unlines $ nonImports <> [renderImportStmts imports, rest]
-    -- important to write errors to stderr and exit with nonzero,
-    -- or editors might replace our code with the error message.
-    notifyError e = hPutStrLn stderr (parseErrorPretty e) >> exitFailure
+    -- we want to process each chunk of imports as its own little block
+    chunkedInputs :: [String] -> [String]
+    chunkedInputs = map unlines . splitOn (all isSpace)
+
+    output ::  [String]
+           -> ([String], [(SortedImportStmts, String)],
+              Maybe x)
+           -> IO ()
+    output nonImports (leftovers, chunkedImports, _) =
+      putStr . unlines $ nonImports <> map format chunkedImports <> leftovers
+
+    format :: (SortedImportStmts,String) -> String
+    format (imports,trailing) = renderImportStmts imports <> trailing
+
+splitOn :: (a -> Bool) -> [a] -> [[a]]
+splitOn _ [] = []
+splitOn predicate xs =
+  case break predicate xs of
+    (good, rest) -> good:splitOn predicate (dropWhile predicate rest)
+
+untilLeft :: (a -> Either b c) -> [a] -> ([a], [c], Maybe b)
+untilLeft f = go []
+  where
+    go cs [] = ([], reverse cs, Nothing)
+    go cs (x:xs) =
+      case f x of
+        Left y -> (x:xs, reverse cs, Just y)
+        Right y -> go (y:cs) xs
