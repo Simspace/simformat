@@ -1,26 +1,78 @@
-module Main where
+{-# LANGUAGE LambdaCase #-}
+module Main(main) where
 
 import Data.Bool (bool)
+import Data.Char (isSpace)
 import Data.List (intercalate, isPrefixOf)
 import Data.Map (Map)
 import Data.Maybe (isJust)
-import Data.Monoid ((<>))
+import Data.Semigroup ((<>), Semigroup)
 import Data.Set (Set)
 import Data.Void (Void)
-import System.Exit (exitFailure)
-import System.IO (hPutStrLn, stderr)
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import Text.Printf (printf)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+type Parser = Parsec Void String
+
+-- Sorting
+
+-- The key type is carefully chosen so `Map.toList` puts the qualified imports at the bottom,
+-- and then sorts by module name.
+newtype SortedImportStmts = SortedImportStmts
+  { unSortedImportStmts :: Map (Bool, String, Maybe String) SortedImportList
+  }
+  deriving Show
+
+-- High level elements
+
+data ImportStmt = ImportStmt
+  { importStmtQualified  :: Bool
+  , importStmtModuleName :: String
+  , importStmtAlias      :: Maybe String
+  , importStmtImportList :: SortedImportList
+  } deriving Show
+
+setDiff :: Ord a => Set a -> Set a -> Maybe (Set a)
+setDiff x y = Just $ Set.difference x y
+
+-- Order chosen here so that sorting them will put the hiding clauses
+-- first, then partial imports, then open imports.
+data SortedImportList
+  = HidingImport  (Map GroupKeyType (Set String))
+  | PartialImport (Map GroupKeyType (Set String))
+  | OpenImport
+  deriving (Show,Ord,Eq)
+
+instance Semigroup SortedImportList where
+  OpenImport      <> _               = OpenImport
+  _               <> OpenImport      = OpenImport
+  HidingImport  a <> HidingImport b  = HidingImport  (Map.intersectionWith Set.intersection a b)
+  PartialImport a <> PartialImport b = PartialImport (Map.unionWith Set.union a b)
+  HidingImport  a <> PartialImport b = HidingImport  (Map.differenceWith setDiff a b)
+  PartialImport b <> HidingImport a  = HidingImport  (Map.differenceWith setDiff a b)
+
+type GroupKeyType = Either String ()
+
+data ImportEntry
+  = ImportEntryGroup ImportGroup
+  | ImportEntryAtom String
+  deriving (Show,Ord,Eq)
+
+-- | ImportGroup: something like (Monoid(mempty,mappend)) in an import
+--   line.
+data ImportGroup = ImportGroup
+  { _importGroupName :: String
+  , _importGroupList :: Set String
+  }
+  deriving (Show,Ord,Eq)
+
 -- $setup
 -- >>> import Data.Maybe (fromJust)
 
 -- General parsing
-
-type Parser = Parsec Void String
 
 comma :: Parser String
 comma = string ","
@@ -60,108 +112,70 @@ symbolChars = "!#$%&*+./<=>?@^|-~:\\"
 -- >>> parseMaybe symbol "(<>)"
 -- Just "(<>)"
 symbol :: Parser String
-symbol = padded $ operator <|> some (alphaNumChar <|> oneOf ("._'" :: [Char]))
+symbol = padded $ operator <|> some (alphaNumChar <|> oneOf ("._'" :: String))
 
--- High level elements
-
-data ImportStmt = ImportStmt
-  { importStmtQualified  :: Bool
-  , importStmtModuleName :: String
-  , importStmtAlias      :: Maybe String
-  , importStmtImportList :: Maybe [ImportEntry]
-  }
-  deriving Show
-
-data ImportEntry
-  = ImportEntryGroup ImportGroup
-  | ImportEntryAtom String
-  deriving Show
-
-data ImportGroup = ImportGroup
-  { importGroupName :: String
-  , importGroupList :: [String]
-  }
-  deriving Show
+parseImportBlock :: Parser SortedImportStmts
+parseImportBlock = toSortedImportStmts <$> some parseImportStmt
 
 -- |
 -- >>> parseMaybe parseImportStmt "import qualified Data.Map as Map"
--- Just (ImportStmt {importStmtQualified = True, importStmtModuleName = "Data.Map", importStmtAlias = Just "Map", importStmtImportList = Nothing})
+-- Just (ImportStmt {importStmtQualified = True, importStmtModuleName = "Data.Map", importStmtAlias = Just "Map", importStmtImportList = OpenImport})
 -- >>> parseMaybe parseImportStmt "import Data.Maybe (catMaybes, fromMaybe, isJust)"
--- Just (ImportStmt {importStmtQualified = False, importStmtModuleName = "Data.Maybe", importStmtAlias = Nothing, importStmtImportList = Just [ImportEntryAtom "catMaybes",ImportEntryAtom "fromMaybe",ImportEntryAtom "isJust"]})
+-- Just (ImportStmt {importStmtQualified = False, importStmtModuleName = "Data.Maybe", importStmtAlias = Nothing, importStmtImportList = PartialImport (fromList [(Right (),fromList ["catMaybes","fromMaybe","isJust"])])})
 -- >>> parseMaybe parseImportStmt "import Data.Monoid (Monoid(mempty, mappend), (<>))"
--- Just (ImportStmt {importStmtQualified = False, importStmtModuleName = "Data.Monoid", importStmtAlias = Nothing, importStmtImportList = Just [ImportEntryGroup (ImportGroup {importGroupName = "Monoid", importGroupList = ["mempty","mappend"]}),ImportEntryAtom "(<>)"]})
+-- Just (ImportStmt {importStmtQualified = False, importStmtModuleName = "Data.Monoid", importStmtAlias = Nothing, importStmtImportList = PartialImport (fromList [(Left "Monoid",fromList ["mappend","mempty"]),(Right (),fromList ["(<>)"])])})
 -- >>> parseMaybe parseImportStmt "import Data.Monoid (Monoid(..), (<>))"
--- Just (ImportStmt {importStmtQualified = False, importStmtModuleName = "Data.Monoid", importStmtAlias = Nothing, importStmtImportList = Just [ImportEntryGroup (ImportGroup {importGroupName = "Monoid", importGroupList = [".."]}),ImportEntryAtom "(<>)"]})
+-- Just (ImportStmt {importStmtQualified = False, importStmtModuleName = "Data.Monoid", importStmtAlias = Nothing, importStmtImportList = PartialImport (fromList [(Left "Monoid",fromList [".."]),(Right (),fromList ["(<>)"])])})
 -- >>> parseMaybe parseImportStmt "import OrphanInstances ()"
--- Just (ImportStmt {importStmtQualified = False, importStmtModuleName = "OrphanInstances", importStmtAlias = Nothing, importStmtImportList = Just []})
+-- Just (ImportStmt {importStmtQualified = False, importStmtModuleName = "OrphanInstances", importStmtAlias = Nothing, importStmtImportList = PartialImport (fromList [])})
+-- >>> parseMaybe parseImportStmt "import Foo hiding (Bar, (+))"
+-- Just (ImportStmt {importStmtQualified = False, importStmtModuleName = "Foo", importStmtAlias = Nothing, importStmtImportList = HidingImport (fromList [(Right (),fromList ["(+)","Bar"])])})
 parseImportStmt :: Parser ImportStmt
 parseImportStmt = ImportStmt
               <$> ( ptoken "import"
                  *> (fmap isJust . optional $ ptoken "qualified")
                   )
               <*> symbol
-              <*> (optional $ ptoken "as" *> symbol)
-              <*> (optional $ parseList parseImportEntry)
+              <*> optional (ptoken "as" *> symbol)
+              <*> (mkSortedImportList =<<
+                   (,) <$> optional (parseList parseImportEntry)
+                       <*> optional (string "hiding" >> parseList parseImportEntry))
+  where
+    mkSortedImportList :: (Maybe [ImportEntry], Maybe [ImportEntry]) -> Parser SortedImportList
+    mkSortedImportList (Just x, Nothing) = pure $ PartialImport $ buildImportList x
+    mkSortedImportList (Nothing,Just x)  = pure $ HidingImport $ buildImportList  x
+    mkSortedImportList (Nothing,Nothing) = pure OpenImport
+    mkSortedImportList (Just _, Just _) = fail "can't specify both a hiding clause and an import clause"
+
+    buildImportList :: [ImportEntry] -> Map.Map GroupKeyType (Set String)
+    buildImportList = Map.fromListWith Set.union . map extractKey
+
+    extractKey :: ImportEntry -> (GroupKeyType, Set String)
+    extractKey (ImportEntryGroup (ImportGroup k s)) = (Left k, s)
+    extractKey (ImportEntryAtom s)                  = (Right (), Set.singleton s)
 
 parseImportEntry :: Parser ImportEntry
 parseImportEntry = do
   name <- symbol
-  ImportEntryGroup <$> (parseImportGroup name) <|> pure (ImportEntryAtom name)
+  ImportEntryGroup <$> parseImportGroup name <|> pure (ImportEntryAtom name)
 
 parseImportGroup :: String -> Parser ImportGroup
-parseImportGroup name = ImportGroup name
+parseImportGroup name = ImportGroup name . Set.fromList
                     <$> parseList symbol
 
--- Sorting
-
--- The key type is carefully chosen so `Map.toList` puts the qualified imports at the bottom,
--- and then sorts by module name.
-newtype SortedImportStmts = SortedImportStmts
-  { unSortedImportStmts :: Map (Bool, String, Maybe String) SortedImportList
-  }
-  deriving Show
-
--- The key type is carefully chosen so `Map.toList` puts the groups at the top, then sorts by name.
--- The @Right ()@ key is a fake group whose items are the atoms.
-newtype SortedImportList = SortedImportList
-  { unSortedImportList :: Map (Either String ()) (Set String)
-  }
-  deriving Show
-
-instance Monoid SortedImportStmts where
-  mempty = SortedImportStmts mempty
-  SortedImportStmts xs `mappend` SortedImportStmts ys = SortedImportStmts (Map.unionWith (<>) xs ys)
-
-instance Monoid SortedImportList where
-  mempty = SortedImportList mempty
-  SortedImportList xs `mappend` SortedImportList ys = SortedImportList (Map.unionWith (<>) xs ys)
-
--- "import Foo" is 'mempty', "import Foo ()" is 'instancesOnly'
-instancesOnly :: SortedImportList
-instancesOnly = SortedImportList $ Map.singleton (Right ()) mempty
-
 toSortedImportStmts :: [ImportStmt] -> SortedImportStmts
-toSortedImportStmts = foldMap go
+toSortedImportStmts = SortedImportStmts . fmap simplify . Map.fromListWith (<>) . map extractKey
   where
-    go :: ImportStmt -> SortedImportStmts
-    go (ImportStmt {..}) = SortedImportStmts $ Map.singleton key value
-      where
-        key   = (importStmtQualified, importStmtModuleName, importStmtAlias)
-        value = toSortedImportList importStmtImportList
+    extractKey ImportStmt{..} =
+      ((importStmtQualified, importStmtModuleName, importStmtAlias)
+      ,importStmtImportList)
 
-toSortedImportList :: Maybe [ImportEntry] -> SortedImportList
-toSortedImportList = maybe mempty (instancesOnly <>)
-                   . fmap (foldMap go)
-  where
-    go :: ImportEntry -> SortedImportList
-    go (ImportEntryGroup (ImportGroup {..})) = SortedImportList $ Map.singleton key value
-      where
-        key   = Left importGroupName
-        value = Set.fromList importGroupList
-    go (ImportEntryAtom atom)                = SortedImportList $ Map.singleton key value
-      where
-        key   = Right ()
-        value = Set.singleton atom
+    simplify :: SortedImportList -> SortedImportList
+    simplify (HidingImport x)
+      -- an empty hiding list is just an open import
+      | all Set.null (Map.elems x) = OpenImport
+      | otherwise = HidingImport x
+    simplify x = x
 
 fromSortedImportStmts :: SortedImportStmts -> [ImportStmt]
 fromSortedImportStmts = map (uncurry go) . Map.toList . unSortedImportStmts
@@ -171,28 +185,8 @@ fromSortedImportStmts = map (uncurry go) . Map.toList . unSortedImportStmts
       { importStmtQualified  = qualified
       , importStmtModuleName = moduleName
       , importStmtAlias      = alias
-      , importStmtImportList = fromSortedImportList sortedImportList
+      , importStmtImportList = sortedImportList
       }
-
-fromSortedImportList :: SortedImportList -> Maybe [ImportEntry]
-fromSortedImportList = fmap (foldMap (uncurry go) . Map.toList) . detectEmpty . unSortedImportList
-  where
-    detectEmpty xs | Map.null xs = Nothing
-                   | otherwise   = Just xs
-    go :: Either String () -> Set String -> [ImportEntry]
-    go (Left groupName) items = [ImportEntryGroup . ImportGroup groupName . Set.toList $ items]
-    go (Right ())       items = map ImportEntryAtom . Set.toList $ items
-
-sortImportStmts :: [ImportStmt] -> [ImportStmt]
-sortImportStmts = fromSortedImportStmts . toSortedImportStmts
-
-sortImportStmt :: ImportStmt -> ImportStmt
-sortImportStmt importStmt@(ImportStmt {..}) = importStmt
-  { importStmtImportList = sortImportList importStmtImportList
-  }
-
-sortImportList :: Maybe [ImportEntry] -> Maybe [ImportEntry]
-sortImportList = fromSortedImportList . toSortedImportList
 
 -- Rendering
 
@@ -219,7 +213,7 @@ renderList indent renderItem xs0 | null xs0        = Left "()"
             acc' = acc <> ", " <> renderedItem
 
 -- |
--- >>> let test = putStr . unlines . map ('|':) . lines . intercalate "\n" . map renderImportStmt . sortImportStmts . fromJust . parseMaybe (some parseImportStmt)
+-- >>> let test = putStr . unlines . map ('|':) . lines . intercalate "\n" . map renderImportStmt . fromSortedImportStmts . fromJust . parseMaybe parseImportBlock
 --
 -- Short import lists are kept on a single line:
 --
@@ -257,40 +251,84 @@ renderList indent renderItem xs0 | null xs0        = Left "()"
 -- |import A (A(MkA, runA, unA))
 -- |import Data.Map (lookup)
 -- |import qualified Data.Map as Map
+--
+-- Empty hiding lists should be elided
+-- >>> test "import Foo hiding (Bar)\nimport Baz\nimport Foo hiding (quux)"
+-- |import Baz
+-- |import Foo
+--
+-- Hiding wins over imports
+-- >>> test "import Foo hiding (Bar)\nimport Foo(baz)\n"
+-- |import Foo hiding (Bar)
+--
+-- Hiding imports go first, then normal imports, then qualified
+-- >>> test "import qualified Foo\nimport Bar hiding(baz)\nimport Quux"
+-- |import Bar hiding (baz)
+-- |import Quux
+-- |import qualified Foo
+
 renderImportStmt :: ImportStmt -> String
-renderImportStmt (ImportStmt {..}) = "import"
-                                  <> bool "" " qualified" importStmtQualified
-                                  <> printf " %s" importStmtModuleName
-                                  <> maybe "" (printf " as %s") importStmtAlias
-                                  <> maybe "" renderImportList importStmtImportList
+renderImportStmt ImportStmt {..} = "import"
+                                <> bool "" " qualified" importStmtQualified
+                                <> printf " %s" importStmtModuleName
+                                <> maybe "" (printf " as %s") importStmtAlias
+                                <> renderImportList importStmtImportList
 
-renderImportList :: [ImportEntry] -> String
-renderImportList = either (' ':) (('\n':) . intercalate "\n")
-                 . renderList "  " renderImportEntry
+renderImportStmts :: SortedImportStmts -> String
+renderImportStmts = unlines . map renderImportStmt . fromSortedImportStmts
 
-renderImportEntry :: ImportEntry -> String
-renderImportEntry (ImportEntryGroup x) = renderImportGroup x
-renderImportEntry (ImportEntryAtom  x) = x
+renderImportList :: SortedImportList -> String
+renderImportList = \case
+  OpenImport      -> ""
+  HidingImport h  -> " hiding" <> renderImportEntries h
+  PartialImport i -> renderImportEntries i
 
-renderImportGroup :: ImportGroup -> String
-renderImportGroup (ImportGroup {..}) = importGroupName
-                                    <> renderGroupList importGroupList
+renderImportEntries :: Map.Map GroupKeyType (Set String) -> String
+renderImportEntries =   either (' ':) (('\n':) . intercalate "\n")
+                    . renderList "  " id
+                    . concatMap chunkImportEntry
+                    . Map.toAscList
 
-renderGroupList :: [String] -> String
+chunkImportEntry :: (GroupKeyType, Set String) -> [String]
+chunkImportEntry (Right (), s) =  Set.toAscList s
+chunkImportEntry (Left importGroupName, importGroupList) =
+  [importGroupName <> renderGroupList importGroupList]
+
+renderGroupList :: Set String -> String
 renderGroupList = either id (('\n':) . intercalate "\n")
-                . renderList "    " id
+                . renderList "    " id . Set.toAscList
 
--- NB. if there is a commented line (or block comment) in the middle of an import block,
--- 'many parseImportStmt' will not cope with it, and only the imports before the comment
--- will be processed.
 main :: IO ()
 main = do
-  (nonimports, importsAndAfter) <- span (not . ("import " `isPrefixOf`)) . lines <$> getContents
-  either notifyError (output nonimports) $ parse importsAndRest "" (unlines importsAndAfter)
+  (nonimports, importsAndAfter) <- break ("import " `isPrefixOf`) . lines <$> getContents
+  output nonimports $ untilLeft (parse ((,) <$> parseImportBlock <*> takeRest) "")  (chunkedInputs importsAndAfter)
 
   where
-    importsAndRest = (,) <$> many parseImportStmt <*> takeRest
-    output nonImports (imports, rest) =
-      putStr . unlines $ nonImports <> (map renderImportStmt $ sortImportStmts imports) <> ["",rest]
-    notifyError e = hPutStrLn stderr (parseErrorPretty e) >> exitFailure
+    -- we want to process each chunk of imports as its own little block
+    chunkedInputs :: [String] -> [String]
+    chunkedInputs = map unlines . splitOn (all isSpace)
 
+    output ::  [String]
+           -> ([String], [(SortedImportStmts, String)],
+              Maybe x)
+           -> IO ()
+    output nonImports (leftovers, chunkedImports, _) =
+      putStr . unlines $ nonImports <> map format chunkedImports <> leftovers
+
+    format :: (SortedImportStmts,String) -> String
+    format (imports,trailing) = renderImportStmts imports <> trailing
+
+splitOn :: (a -> Bool) -> [a] -> [[a]]
+splitOn _ [] = []
+splitOn predicate xs =
+  case break predicate xs of
+    (good, rest) -> good:splitOn predicate (dropWhile predicate rest)
+
+untilLeft :: (a -> Either b c) -> [a] -> ([a], [c], Maybe b)
+untilLeft f = go []
+  where
+    go cs [] = ([], reverse cs, Nothing)
+    go cs (x:xs) =
+      case f x of
+        Left y -> (x:xs, reverse cs, Just y)
+        Right y -> go (y:cs) xs
