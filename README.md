@@ -31,5 +31,9 @@ haskell-stylish-on-save t)` should automatically reformat your import
 list on every save. This is completely impossible in Vim, and @asivitz
 should by no means take this as a personal challenge.
 
+If you prefer not to run code on save, you can use
+`shell-command-on-region` with a region active and the prefix argument
+set, i.e. `C-u M-| simformat`
+
 From within Vim, e.g., visual select your code (or the whole file) and
 then run `:!simformat`
