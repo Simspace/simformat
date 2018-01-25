@@ -1,8 +1,10 @@
 {-# LANGUAGE LambdaCase #-}
+{-# OPTIONS -Wno-unused-matches -Wno-unused-local-binds -Wno-unused-top-binds -Wno-unused-imports #-}
 module Main(main) where
 
 import Data.Bool (bool)
 import Data.Char (isSpace)
+import Data.Foldable (traverse_)
 import Data.List (intercalate, isPrefixOf)
 import Data.Map (Map)
 import Data.Maybe (isJust)
@@ -298,31 +300,49 @@ renderGroupList :: Set String -> String
 renderGroupList = either id (('\n':) . intercalate "\n")
                 . renderList "    " id . Set.toAscList
 
+
+type BlankLine = String
+type Block = Either BlankLine String
+
 main :: IO ()
 main = do
   (nonimports, importsAndAfter) <- break ("import " `isPrefixOf`) . lines <$> getContents
-  output nonimports $ untilLeft (parse ((,) <$> parseImportBlock <*> takeRest) "")  (chunkedInputs importsAndAfter)
+  traverse_ outputBlock $ reassemble nonimports $ untilLeft processBlock (chunkedInputs importsAndAfter)
 
   where
+    detectBlankLine :: String -> Either BlankLine String
+    detectBlankLine s | all isSpace s = Left s
+                      | otherwise     = Right s
+
     -- we want to process each chunk of imports as its own little block
-    chunkedInputs :: [String] -> [String]
-    chunkedInputs = map unlines . splitOn (all isSpace)
+    chunkedInputs :: [String] -> [Block]
+    chunkedInputs = (fmap.fmap) unlines . splitOn detectBlankLine
 
-    output ::  [String]
-           -> ([String], [(SortedImportStmts, String)],
-              Maybe x)
-           -> IO ()
-    output nonImports (leftovers, chunkedImports, _) =
-      putStr . unlines $ nonImports <> map format chunkedImports <> leftovers
+    processBlock :: Block -> Either (ParseError Char Void) (Either BlankLine SortedImportStmts)
+    processBlock (Left  s) = pure (Left s)
+    processBlock (Right s) = Right <$> parse parseImportBlock "" s
 
-    format :: (SortedImportStmts,String) -> String
-    format (imports,trailing) = renderImportStmts imports <> trailing
+    reassemble :: [String]
+               -> ([Block], [Either BlankLine SortedImportStmts], e)
+               -> [Block]
+    reassemble nonImports (leftovers, chunkedImports, _)
+      = fmap Left nonImports
+     <> (fmap.fmap) renderImportStmts chunkedImports
+     <> leftovers
 
-splitOn :: (a -> Bool) -> [a] -> [[a]]
+    outputBlock :: Block -> IO ()
+    outputBlock (Left  s) = putStrLn s
+    outputBlock (Right s) = putStr s
+
+-- |divide the input into blocks while preserving the number of separators
+-- >>> splitOn (==0) [
+splitOn :: (a -> Either separator b) -> [a] -> [Either separator [b]]
 splitOn _ [] = []
-splitOn predicate xs =
-  case break predicate xs of
-    (good, rest) -> good:splitOn predicate (dropWhile predicate rest)
+splitOn f (x:xs) = case f x of
+  Left separator -> Left separator : splitOn f xs
+  Right y        -> case splitOn f xs of
+    Right ys : zs -> Right (y:ys) : zs
+    zs            -> Right [y] : zs
 
 untilLeft :: (a -> Either b c) -> [a] -> ([a], [c], Maybe b)
 untilLeft f = go []
