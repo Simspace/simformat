@@ -16,6 +16,7 @@ import Text.Megaparsec.Char
 import Text.Printf (printf)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Debug.Trace
 
 type Parser = Parsec Void String
 
@@ -63,9 +64,9 @@ data GroupKeyType
   deriving (Show,Ord,Eq)
 
 data ImportEntry
-  = ImportEntryKindGroup ImportGroup
-  | ImportEntryTypeGroup ImportGroup
+  = ImportEntryTypeGroup ImportGroup
   | ImportEntryTypeAtom String
+  | ImportEntryGroup ImportGroup
   | ImportEntryAtom String
   deriving (Show,Ord,Eq)
 
@@ -159,8 +160,8 @@ parseImportStmt = ImportStmt
     buildImportList = Map.fromListWith Set.union . map extractKey
 
     extractKey :: ImportEntry -> (GroupKeyType, Set String)
-    extractKey (ImportEntryKindGroup (ImportGroup k s)) = (KindConstructorKey k, s)
-    extractKey (ImportEntryTypeGroup (ImportGroup k s)) = (TypeConstructorKey k, s)
+    extractKey (ImportEntryTypeGroup (ImportGroup k s)) = (KindConstructorKey k, s)
+    extractKey (ImportEntryGroup (ImportGroup k s)) = (TypeConstructorKey k, s)
     extractKey (ImportEntryTypeAtom s)                  = (NoGroupKey, Set.singleton ("type " <> s))
     extractKey (ImportEntryAtom s)                      = (NoGroupKey, Set.singleton s)
 
@@ -170,9 +171,9 @@ parseImportEntry = do
   if name == "type"
   then do
     name' <- symbol
-    ImportEntryKindGroup <$> parseImportGroup name' <|> pure (ImportEntryTypeAtom name)
+    ImportEntryTypeGroup <$> parseImportGroup name' <|> pure (ImportEntryTypeAtom name')
   else do
-    ImportEntryTypeGroup <$> parseImportGroup name <|> pure (ImportEntryAtom name)
+    ImportEntryGroup <$> parseImportGroup name <|> pure (ImportEntryAtom name)
 
 parseImportGroup :: String -> Parser ImportGroup
 parseImportGroup name = ImportGroup name . Set.fromList
