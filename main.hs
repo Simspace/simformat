@@ -56,10 +56,15 @@ instance Semigroup SortedImportList where
   HidingImport  a <> PartialImport b = HidingImport  (Map.differenceWith setDiff a b)
   PartialImport b <> HidingImport a  = HidingImport  (Map.differenceWith setDiff a b)
 
-type GroupKeyType = Either String ()
+data GroupKeyType
+  = KindConstructorKey String
+  | TypeConstructorKey String
+  | NoGroupKey
+  deriving (Show,Ord,Eq)
 
 data ImportEntry
-  = ImportEntryGroup ImportGroup
+  = ImportEntryKindGroup ImportGroup
+  | ImportEntryTypeGroup ImportGroup
   | ImportEntryAtom String
   deriving (Show,Ord,Eq)
 
@@ -153,13 +158,19 @@ parseImportStmt = ImportStmt
     buildImportList = Map.fromListWith Set.union . map extractKey
 
     extractKey :: ImportEntry -> (GroupKeyType, Set String)
-    extractKey (ImportEntryGroup (ImportGroup k s)) = (Left k, s)
-    extractKey (ImportEntryAtom s)                  = (Right (), Set.singleton s)
+    extractKey (ImportEntryKindGroup (ImportGroup k s)) = (KindConstructorKey k, s)
+    extractKey (ImportEntryTypeGroup (ImportGroup k s)) = (TypeConstructorKey k, s)
+    extractKey (ImportEntryAtom s)                  = (NoGroupKey, Set.singleton s)
 
 parseImportEntry :: Parser ImportEntry
 parseImportEntry = do
   name <- symbol
-  ImportEntryGroup <$> parseImportGroup name <|> pure (ImportEntryAtom name)
+  if name == "type"
+  then do
+    name' <- symbol
+    ImportEntryKindGroup <$> parseImportGroup name' <|> pure (ImportEntryAtom name)
+  else do
+    ImportEntryTypeGroup <$> parseImportGroup name <|> pure (ImportEntryAtom name)
 
 parseImportGroup :: String -> Parser ImportGroup
 parseImportGroup name = ImportGroup name . Set.fromList
@@ -292,9 +303,11 @@ renderImportEntries =   either (' ':) (('\n':) . intercalate "\n")
                     . Map.toAscList
 
 chunkImportEntry :: (GroupKeyType, Set String) -> [String]
-chunkImportEntry (Right (), s) =  Set.toAscList s
-chunkImportEntry (Left importGroupName, importGroupList) =
+chunkImportEntry (NoGroupKey, s) = Set.toAscList s
+chunkImportEntry (TypeConstructorKey importGroupName, importGroupList) =
   [importGroupName <> renderGroupList importGroupList]
+chunkImportEntry (KindConstructorKey importGroupName, importGroupList) =
+  ["type " <> importGroupName <> renderGroupList importGroupList]
 
 renderGroupList :: Set String -> String
 renderGroupList = either id (('\n':) . intercalate "\n")
