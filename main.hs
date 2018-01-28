@@ -58,8 +58,9 @@ instance Semigroup SortedImportList where
   PartialImport b <> HidingImport a  = HidingImport  (Map.differenceWith setDiff a b)
 
 data GroupKeyType
-  = KindConstructorKey String
-  | TypeConstructorKey String
+  = ConstructorTypeKey String
+  | NoGroupTypeKey
+  | ConstructorKey String
   | NoGroupKey
   deriving (Show,Ord,Eq)
 
@@ -160,9 +161,9 @@ parseImportStmt = ImportStmt
     buildImportList = Map.fromListWith Set.union . map extractKey
 
     extractKey :: ImportEntry -> (GroupKeyType, Set String)
-    extractKey (ImportEntryTypeGroup (ImportGroup k s)) = (KindConstructorKey k, s)
-    extractKey (ImportEntryGroup (ImportGroup k s)) = (TypeConstructorKey k, s)
-    extractKey (ImportEntryTypeAtom s)                  = (NoGroupKey, Set.singleton ("type " <> s))
+    extractKey (ImportEntryTypeGroup (ImportGroup k s)) = (ConstructorTypeKey k, s)
+    extractKey (ImportEntryGroup (ImportGroup k s)) = (ConstructorKey k, s)
+    extractKey (ImportEntryTypeAtom s)                  = (NoGroupTypeKey, Set.singleton s)
     extractKey (ImportEntryAtom s)                      = (NoGroupKey, Set.singleton s)
 
 parseImportEntry :: Parser ImportEntry
@@ -307,9 +308,10 @@ renderImportEntries =   either (' ':) (('\n':) . intercalate "\n")
 
 chunkImportEntry :: (GroupKeyType, Set String) -> [String]
 chunkImportEntry (NoGroupKey, s) = Set.toAscList s
-chunkImportEntry (TypeConstructorKey importGroupName, importGroupList) =
+chunkImportEntry (NoGroupTypeKey, s) = ("type " <>) <$> Set.toAscList s
+chunkImportEntry (ConstructorKey importGroupName, importGroupList) =
   [importGroupName <> renderGroupList importGroupList]
-chunkImportEntry (KindConstructorKey importGroupName, importGroupList) =
+chunkImportEntry (ConstructorTypeKey importGroupName, importGroupList) =
   ["type " <> importGroupName <> renderGroupList importGroupList]
 
 renderGroupList :: Set String -> String
