@@ -65,6 +65,7 @@ data GroupKeyType
 data ImportEntry
   = ImportEntryKindGroup ImportGroup
   | ImportEntryTypeGroup ImportGroup
+  | ImportEntryTypeAtom String
   | ImportEntryAtom String
   deriving (Show,Ord,Eq)
 
@@ -160,7 +161,8 @@ parseImportStmt = ImportStmt
     extractKey :: ImportEntry -> (GroupKeyType, Set String)
     extractKey (ImportEntryKindGroup (ImportGroup k s)) = (KindConstructorKey k, s)
     extractKey (ImportEntryTypeGroup (ImportGroup k s)) = (TypeConstructorKey k, s)
-    extractKey (ImportEntryAtom s)                  = (NoGroupKey, Set.singleton s)
+    extractKey (ImportEntryTypeAtom s)                  = (NoGroupKey, Set.singleton ("type " <> s))
+    extractKey (ImportEntryAtom s)                      = (NoGroupKey, Set.singleton s)
 
 parseImportEntry :: Parser ImportEntry
 parseImportEntry = do
@@ -168,7 +170,7 @@ parseImportEntry = do
   if name == "type"
   then do
     name' <- symbol
-    ImportEntryKindGroup <$> parseImportGroup name' <|> pure (ImportEntryAtom name)
+    ImportEntryKindGroup <$> parseImportGroup name' <|> pure (ImportEntryTypeAtom name)
   else do
     ImportEntryTypeGroup <$> parseImportGroup name <|> pure (ImportEntryAtom name)
 
