@@ -307,7 +307,7 @@ type Block = Either BlankLine String
 main :: IO ()
 main = do
   (nonimports, importsAndAfter) <- break ("import " `isPrefixOf`) . lines <$> getContents
-  traverse_ outputBlock $ reassemble nonimports $ untilLeft processBlock (chunkedInputs importsAndAfter)
+  traverse_ outputBlock $ reassemble nonimports $ untilNothing processBlock (chunkedInputs importsAndAfter)
 
   where
     detectBlankLine :: String -> Either BlankLine String
@@ -318,14 +318,14 @@ main = do
     chunkedInputs :: [String] -> [Block]
     chunkedInputs = (fmap.fmap) unlines . splitOn detectBlankLine
 
-    processBlock :: Block -> Either (ParseError Char Void) (Either BlankLine SortedImportStmts)
+    processBlock :: Block -> Maybe (Either BlankLine SortedImportStmts)
     processBlock (Left  s) = pure (Left s)
-    processBlock (Right s) = Right <$> parse parseImportBlock "" s
+    processBlock (Right s) = Right <$> parseMaybe parseImportBlock s
 
     reassemble :: [String]
-               -> ([Block], [Either BlankLine SortedImportStmts], e)
+               -> ([Either BlankLine SortedImportStmts], [Block])
                -> [Block]
-    reassemble nonImports (leftovers, chunkedImports, _)
+    reassemble nonImports (chunkedImports, leftovers)
       = fmap Left nonImports
      <> (fmap.fmap) renderImportStmts chunkedImports
      <> leftovers
@@ -344,11 +344,11 @@ splitOn f (x:xs) = case f x of
     Right ys : zs -> Right (y:ys) : zs
     zs            -> Right [y] : zs
 
-untilLeft :: (a -> Either b c) -> [a] -> ([a], [c], Maybe b)
-untilLeft f = go []
+untilNothing :: (a -> Maybe b) -> [a] -> ([b], [a])
+untilNothing f = go []
   where
-    go cs [] = ([], reverse cs, Nothing)
-    go cs (x:xs) =
+    go ys [] = (reverse ys, [])
+    go ys (x:xs) =
       case f x of
-        Left y -> (x:xs, reverse cs, Just y)
-        Right y -> go (y:cs) xs
+        Nothing -> (reverse ys, x:xs)
+        Just y  -> go (y:ys) xs
