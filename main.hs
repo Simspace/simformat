@@ -16,6 +16,7 @@ import Text.Megaparsec.Char
 import Text.Printf (printf)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Debug.Trace
 
 type Parser = Parsec Void String
 
@@ -56,10 +57,17 @@ instance Semigroup SortedImportList where
   HidingImport  a <> PartialImport b = HidingImport  (Map.differenceWith setDiff a b)
   PartialImport b <> HidingImport a  = HidingImport  (Map.differenceWith setDiff a b)
 
-type GroupKeyType = Either String ()
+data GroupKeyType
+  = ConstructorTypeKey String
+  | NoGroupTypeKey
+  | ConstructorKey String
+  | NoGroupKey
+  deriving (Show,Ord,Eq)
 
 data ImportEntry
-  = ImportEntryGroup ImportGroup
+  = ImportEntryTypeGroup ImportGroup
+  | ImportEntryTypeAtom String
+  | ImportEntryGroup ImportGroup
   | ImportEntryAtom String
   deriving (Show,Ord,Eq)
 
@@ -153,13 +161,20 @@ parseImportStmt = ImportStmt
     buildImportList = Map.fromListWith Set.union . map extractKey
 
     extractKey :: ImportEntry -> (GroupKeyType, Set String)
-    extractKey (ImportEntryGroup (ImportGroup k s)) = (Left k, s)
-    extractKey (ImportEntryAtom s)                  = (Right (), Set.singleton s)
+    extractKey (ImportEntryTypeGroup (ImportGroup k s)) = (ConstructorTypeKey k, s)
+    extractKey (ImportEntryGroup (ImportGroup k s)) = (ConstructorKey k, s)
+    extractKey (ImportEntryTypeAtom s)                  = (NoGroupTypeKey, Set.singleton s)
+    extractKey (ImportEntryAtom s)                      = (NoGroupKey, Set.singleton s)
 
 parseImportEntry :: Parser ImportEntry
 parseImportEntry = do
   name <- symbol
-  ImportEntryGroup <$> parseImportGroup name <|> pure (ImportEntryAtom name)
+  if name == "type"
+  then do
+    name' <- symbol
+    ImportEntryTypeGroup <$> parseImportGroup name' <|> pure (ImportEntryTypeAtom name')
+  else do
+    ImportEntryGroup <$> parseImportGroup name <|> pure (ImportEntryAtom name)
 
 parseImportGroup :: String -> Parser ImportGroup
 parseImportGroup name = ImportGroup name . Set.fromList
@@ -292,9 +307,12 @@ renderImportEntries =   either (' ':) (('\n':) . intercalate "\n")
                     . Map.toAscList
 
 chunkImportEntry :: (GroupKeyType, Set String) -> [String]
-chunkImportEntry (Right (), s) =  Set.toAscList s
-chunkImportEntry (Left importGroupName, importGroupList) =
+chunkImportEntry (NoGroupKey, s) = Set.toAscList s
+chunkImportEntry (NoGroupTypeKey, s) = ("type " <>) <$> Set.toAscList s
+chunkImportEntry (ConstructorKey importGroupName, importGroupList) =
   [importGroupName <> renderGroupList importGroupList]
+chunkImportEntry (ConstructorTypeKey importGroupName, importGroupList) =
+  ["type " <> importGroupName <> renderGroupList importGroupList]
 
 renderGroupList :: Set String -> String
 renderGroupList = either id (('\n':) . intercalate "\n")
@@ -307,7 +325,7 @@ type Block = Either BlankLine String
 main :: IO ()
 main = do
   (nonimports, importsAndAfter) <- break ("import " `isPrefixOf`) . lines <$> getContents
-  traverse_ outputBlock $ reassemble nonimports $ untilLeft processBlock (chunkedInputs importsAndAfter)
+  traverse_ outputBlock $ reassemble nonimports $ untilNothing processBlock (chunkedInputs importsAndAfter)
 
   where
     detectBlankLine :: String -> Either BlankLine String
@@ -318,14 +336,14 @@ main = do
     chunkedInputs :: [String] -> [Block]
     chunkedInputs = (fmap.fmap) unlines . splitOn detectBlankLine
 
-    processBlock :: Block -> Either (ParseError Char Void) (Either BlankLine SortedImportStmts)
+    processBlock :: Block -> Maybe (Either BlankLine SortedImportStmts)
     processBlock (Left  s) = pure (Left s)
-    processBlock (Right s) = Right <$> parse parseImportBlock "" s
+    processBlock (Right s) = Right <$> parseMaybe parseImportBlock s
 
     reassemble :: [String]
-               -> ([Block], [Either BlankLine SortedImportStmts], e)
+               -> ([Either BlankLine SortedImportStmts], [Block])
                -> [Block]
-    reassemble nonImports (leftovers, chunkedImports, _)
+    reassemble nonImports (chunkedImports, leftovers)
       = fmap Left nonImports
      <> (fmap.fmap) renderImportStmts chunkedImports
      <> leftovers
@@ -344,11 +362,11 @@ splitOn f (x:xs) = case f x of
     Right ys : zs -> Right (y:ys) : zs
     zs            -> Right [y] : zs
 
-untilLeft :: (a -> Either b c) -> [a] -> ([a], [c], Maybe b)
-untilLeft f = go []
+untilNothing :: (a -> Maybe b) -> [a] -> ([b], [a])
+untilNothing f = go []
   where
-    go cs [] = ([], reverse cs, Nothing)
-    go cs (x:xs) =
+    go ys [] = (reverse ys, [])
+    go ys (x:xs) =
       case f x of
-        Left y -> (x:xs, reverse cs, Just y)
-        Right y -> go (y:cs) xs
+        Nothing -> (reverse ys, x:xs)
+        Just y  -> go (y:ys) xs
