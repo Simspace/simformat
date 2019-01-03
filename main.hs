@@ -2,6 +2,7 @@
 {-# OPTIONS -Wno-unused-matches -Wno-unused-local-binds -Wno-unused-top-binds -Wno-unused-imports #-}
 module Main(main) where
 
+import Control.Monad (when)
 import Data.Bool (bool)
 import Data.Char (isSpace)
 import Data.Foldable (traverse_)
@@ -10,6 +11,7 @@ import Data.Map (Map)
 import Data.Maybe (isJust)
 import Data.Semigroup ((<>), Semigroup)
 import Data.Set (Set)
+import Data.Version (showVersion)
 import Data.Void (Void)
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -17,6 +19,9 @@ import Text.Printf (printf)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Debug.Trace
+import System.Environment (getArgs)
+import System.Exit (exitSuccess)
+import qualified Paths_simformat as Paths
 
 type Parser = Parsec Void String
 
@@ -322,8 +327,19 @@ renderGroupList = either id (('\n':) . intercalate "\n")
 type BlankLine = String
 type Block = Either BlankLine String
 
+maybeShowVersionAndExit :: IO ()
+maybeShowVersionAndExit = do
+  args <- getArgs
+  when ("--version" `elem` args) $ do
+    putStrLn $ "simformat " ++ showVersion Paths.version
+    exitSuccess
+  when ("--numeric-version" `elem` args) $ do
+    putStrLn $ showVersion Paths.version
+    exitSuccess
+
 main :: IO ()
 main = do
+  maybeShowVersionAndExit
   (nonimports, importsAndAfter) <- break ("import " `isPrefixOf`) . lines <$> getContents
   traverse_ outputBlock $ reassemble nonimports $ untilNothing processBlock (chunkedInputs importsAndAfter)
 
