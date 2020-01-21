@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# OPTIONS -Wno-unused-matches -Wno-unused-local-binds -Wno-unused-top-binds -Wno-unused-imports #-}
-module Main(main) where
+module SimSpace.SimFormat (main, reformat) where
 
 import Control.Monad (when)
 import Data.Bool (bool)
@@ -326,6 +326,7 @@ renderGroupList = either id (('\n':) . intercalate "\n")
 
 type BlankLine = String
 type Block = Either BlankLine String
+type Line = String
 
 maybeShowVersionAndExit :: IO ()
 maybeShowVersionAndExit = do
@@ -337,13 +338,18 @@ maybeShowVersionAndExit = do
     putStrLn $ showVersion Paths.version
     exitSuccess
 
-main :: IO ()
-main = do
-  maybeShowVersionAndExit
-  (nonimports, importsAndAfter) <- break ("import " `isPrefixOf`) . lines <$> getContents
-  traverse_ outputBlock $ reassemble nonimports $ untilNothing processBlock (chunkedInputs importsAndAfter)
+reformat :: [Line] -> [Line]
+reformat programLines =
+  let
+    (nonimports, importsAndAfter) = break ("import " `isPrefixOf`) programLines
+  in
+    concatMap blockToLines . reassemble nonimports $ untilNothing processBlock (chunkedInputs importsAndAfter)
 
   where
+    blockToLines :: Block -> [String]
+    blockToLines (Left s) = lines (s <> "\n")
+    blockToLines (Right s) = lines s
+
     detectBlankLine :: String -> Either BlankLine String
     detectBlankLine s | all isSpace s = Left s
                       | otherwise     = Right s
@@ -364,9 +370,11 @@ main = do
      <> (fmap.fmap) renderImportStmts chunkedImports
      <> leftovers
 
-    outputBlock :: Block -> IO ()
-    outputBlock (Left  s) = putStrLn s
-    outputBlock (Right s) = putStr s
+main :: IO ()
+main = do
+  maybeShowVersionAndExit
+  outputLines <- reformat . lines <$> getContents
+  traverse_ putStrLn outputLines
 
 -- |divide the input into blocks while preserving the number of separators
 -- >>> splitOn (==0) [
