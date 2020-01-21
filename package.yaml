@@ -1,4 +1,5 @@
 name: simformat
+version: 0.0.0.1
 
 ghc-options:
 - -Wall
@@ -14,10 +15,15 @@ dependencies:
 - containers
 - megaparsec >= 6.0.0
 
+library:
+  source-dirs: src
+
 executables:
   simformat:
     main: main.hs
-    source-dirs: ./
+    source-dirs: app
+    dependencies:
+    - simformat
 
 tests:
   simformat-doctests:
