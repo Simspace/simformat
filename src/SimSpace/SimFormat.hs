@@ -27,20 +27,22 @@ type Parser = Parsec Void String
 
 -- Sorting
 
--- The key type is carefully chosen so `Map.toList` puts the qualified imports at the bottom,
+-- The key type is carefully chosen so `Map.toList` puts the package imports at the top,
+-- then qualified imports at the bottom,
 -- and then sorts by module name.
 newtype SortedImportStmts = SortedImportStmts
-  { unSortedImportStmts :: Map (Bool, String, Maybe String) SortedImportList
+  { unSortedImportStmts :: Map (Maybe String, Bool, String, Maybe String) SortedImportList
   }
   deriving Show
 
 -- High level elements
 
 data ImportStmt = ImportStmt
-  { importStmtQualified  :: Bool
-  , importStmtModuleName :: String
-  , importStmtAlias      :: Maybe String
-  , importStmtImportList :: SortedImportList
+  { importStmtQualified   :: Bool
+  , importStmtPackageName :: Maybe String
+  , importStmtModuleName  :: String
+  , importStmtAlias       :: Maybe String
+  , importStmtImportList  :: SortedImportList
   } deriving Show
 
 setDiff :: Ord a => Set a -> Set a -> Maybe (Set a)
@@ -101,6 +103,9 @@ commaSep a = sepBy (padded a) (padded comma)
 parens :: Parser a -> Parser a
 parens = between (ptoken "(") (ptoken ")")
 
+quoted :: Parser a -> Parser a
+quoted = between (ptoken "\"") (ptoken "\"")
+
 ptoken :: String -> Parser String
 ptoken = padded . string
 
@@ -129,27 +134,40 @@ symbolChars = "!#$%&*+./<=>?@^|-~:\\"
 symbol :: Parser String
 symbol = padded $ operator <|> some (alphaNumChar <|> oneOf ("._'" :: String))
 
+-- |
+-- >>> parseMaybe packageName "simformat"
+-- Just "simformat"
+-- >>> parseMaybe packageName "servant-client-core"
+-- Just "servant-client-core"
+-- >>> parseMaybe packageName "foo_bar"
+-- Nothing
+packageName :: Parser String
+packageName = some (alphaNumChar <|> char '-')
+
 parseImportBlock :: Parser SortedImportStmts
 parseImportBlock = toSortedImportStmts <$> some parseImportStmt
 
 -- |
 -- >>> parseMaybe parseImportStmt "import qualified Data.Map as Map"
--- Just (ImportStmt {importStmtQualified = True, importStmtModuleName = "Data.Map", importStmtAlias = Just "Map", importStmtImportList = OpenImport})
+-- Just (ImportStmt {importStmtQualified = True, importStmtPackageName = Nothing, importStmtModuleName = "Data.Map", importStmtAlias = Just "Map", importStmtImportList = OpenImport})
 -- >>> parseMaybe parseImportStmt "import Data.Maybe (catMaybes, fromMaybe, isJust)"
--- Just (ImportStmt {importStmtQualified = False, importStmtModuleName = "Data.Maybe", importStmtAlias = Nothing, importStmtImportList = PartialImport (fromList [(Right (),fromList ["catMaybes","fromMaybe","isJust"])])})
+-- Just (ImportStmt {importStmtQualified = False, importStmtPackageName = Nothing, importStmtModuleName = "Data.Maybe", importStmtAlias = Nothing, importStmtImportList = PartialImport (fromList [(NoGroupKey,fromList ["catMaybes","fromMaybe","isJust"])])})
 -- >>> parseMaybe parseImportStmt "import Data.Monoid (Monoid(mempty, mappend), (<>))"
--- Just (ImportStmt {importStmtQualified = False, importStmtModuleName = "Data.Monoid", importStmtAlias = Nothing, importStmtImportList = PartialImport (fromList [(Left "Monoid",fromList ["mappend","mempty"]),(Right (),fromList ["(<>)"])])})
+-- Just (ImportStmt {importStmtQualified = False, importStmtPackageName = Nothing, importStmtModuleName = "Data.Monoid", importStmtAlias = Nothing, importStmtImportList = PartialImport (fromList [(ConstructorKey "Monoid",fromList ["mappend","mempty"]),(NoGroupKey,fromList ["(<>)"])])})
 -- >>> parseMaybe parseImportStmt "import Data.Monoid (Monoid(..), (<>))"
--- Just (ImportStmt {importStmtQualified = False, importStmtModuleName = "Data.Monoid", importStmtAlias = Nothing, importStmtImportList = PartialImport (fromList [(Left "Monoid",fromList [".."]),(Right (),fromList ["(<>)"])])})
+-- Just (ImportStmt {importStmtQualified = False, importStmtPackageName = Nothing, importStmtModuleName = "Data.Monoid", importStmtAlias = Nothing, importStmtImportList = PartialImport (fromList [(ConstructorKey "Monoid",fromList [".."]),(NoGroupKey,fromList ["(<>)"])])})
 -- >>> parseMaybe parseImportStmt "import OrphanInstances ()"
--- Just (ImportStmt {importStmtQualified = False, importStmtModuleName = "OrphanInstances", importStmtAlias = Nothing, importStmtImportList = PartialImport (fromList [])})
+-- Just (ImportStmt {importStmtQualified = False, importStmtPackageName = Nothing, importStmtModuleName = "OrphanInstances", importStmtAlias = Nothing, importStmtImportList = PartialImport (fromList [])})
 -- >>> parseMaybe parseImportStmt "import Foo hiding (Bar, (+))"
--- Just (ImportStmt {importStmtQualified = False, importStmtModuleName = "Foo", importStmtAlias = Nothing, importStmtImportList = HidingImport (fromList [(Right (),fromList ["(+)","Bar"])])})
+-- Just (ImportStmt {importStmtQualified = False, importStmtPackageName = Nothing, importStmtModuleName = "Foo", importStmtAlias = Nothing, importStmtImportList = HidingImport (fromList [(NoGroupKey,fromList ["(+)","Bar"])])})
+-- >>> parseMaybe parseImportStmt "import \"foo\" Foo"
+-- Just (ImportStmt {importStmtQualified = False, importStmtPackageName = Just "foo", importStmtModuleName = "Foo", importStmtAlias = Nothing, importStmtImportList = OpenImport})
+-- >>> parseMaybe parseImportStmt "import qualified \"foo\" Foo"
+-- Just (ImportStmt {importStmtQualified = True, importStmtPackageName = Just "foo", importStmtModuleName = "Foo", importStmtAlias = Nothing, importStmtImportList = OpenImport})
 parseImportStmt :: Parser ImportStmt
 parseImportStmt = ImportStmt
-              <$> ( ptoken "import"
-                 *> (fmap isJust . optional $ ptoken "qualified")
-                  )
+              <$> (ptoken "import" *> (fmap isJust . optional $ ptoken "qualified"))
+              <*> (optional . padded $ quoted packageName)
               <*> symbol
               <*> optional (ptoken "as" *> symbol)
               <*> (mkSortedImportList =<<
@@ -189,7 +207,7 @@ toSortedImportStmts :: [ImportStmt] -> SortedImportStmts
 toSortedImportStmts = SortedImportStmts . fmap simplify . Map.fromListWith (<>) . map extractKey
   where
     extractKey ImportStmt{..} =
-      ((importStmtQualified, importStmtModuleName, importStmtAlias)
+      ((importStmtPackageName, importStmtQualified, importStmtModuleName, importStmtAlias)
       ,importStmtImportList)
 
     simplify :: SortedImportList -> SortedImportList
@@ -202,12 +220,13 @@ toSortedImportStmts = SortedImportStmts . fmap simplify . Map.fromListWith (<>) 
 fromSortedImportStmts :: SortedImportStmts -> [ImportStmt]
 fromSortedImportStmts = map (uncurry go) . Map.toList . unSortedImportStmts
   where
-    go :: (Bool, String, Maybe String) -> SortedImportList -> ImportStmt
-    go (qualified, moduleName, alias) sortedImportList = ImportStmt
-      { importStmtQualified  = qualified
-      , importStmtModuleName = moduleName
-      , importStmtAlias      = alias
-      , importStmtImportList = sortedImportList
+    go :: (Maybe String, Bool, String, Maybe String) -> SortedImportList -> ImportStmt
+    go (package, qualified, moduleName, alias) sortedImportList = ImportStmt
+      { importStmtPackageName = package
+      , importStmtQualified   = qualified
+      , importStmtModuleName  = moduleName
+      , importStmtAlias       = alias
+      , importStmtImportList  = sortedImportList
       }
 
 -- Rendering
@@ -292,6 +311,7 @@ renderList indent renderItem xs0 | null xs0        = Left "()"
 renderImportStmt :: ImportStmt -> String
 renderImportStmt ImportStmt {..} = "import"
                                 <> bool "" " qualified" importStmtQualified
+                                <> maybe "" (printf " \"%s\"") importStmtPackageName
                                 <> printf " %s" importStmtModuleName
                                 <> maybe "" (printf " as %s") importStmtAlias
                                 <> renderImportList importStmtImportList
@@ -377,7 +397,6 @@ main = do
   traverse_ putStrLn outputLines
 
 -- |divide the input into blocks while preserving the number of separators
--- >>> splitOn (==0) [
 splitOn :: (a -> Either separator b) -> [a] -> [Either separator [b]]
 splitOn _ [] = []
 splitOn f (x:xs) = case f x of
