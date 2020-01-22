@@ -1,17 +1,14 @@
 {-# LANGUAGE LambdaCase #-}
 {-# OPTIONS -Wno-unused-matches -Wno-unused-local-binds -Wno-unused-top-binds -Wno-unused-imports #-}
-module SimSpace.SimFormat (main, reformat) where
+module SimSpace.SimFormat (reformat) where
 
-import Control.Monad (when)
 import Data.Bool (bool)
 import Data.Char (isSpace)
-import Data.Foldable (traverse_)
 import Data.List (intercalate, isPrefixOf)
 import Data.Map (Map)
 import Data.Maybe (isJust)
 import Data.Semigroup ((<>), Semigroup)
 import Data.Set (Set)
-import Data.Version (showVersion)
 import Data.Void (Void)
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -20,8 +17,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Debug.Trace
 import System.Environment (getArgs)
-import System.Exit (exitSuccess)
-import qualified Paths_simformat as Paths
 
 type Parser = Parsec Void String
 
@@ -348,16 +343,6 @@ type BlankLine = String
 type Block = Either BlankLine String
 type Line = String
 
-maybeShowVersionAndExit :: IO ()
-maybeShowVersionAndExit = do
-  args <- getArgs
-  when ("--version" `elem` args) $ do
-    putStrLn $ "simformat " ++ showVersion Paths.version
-    exitSuccess
-  when ("--numeric-version" `elem` args) $ do
-    putStrLn $ showVersion Paths.version
-    exitSuccess
-
 reformat :: [Line] -> [Line]
 reformat programLines =
   let
@@ -389,12 +374,6 @@ reformat programLines =
       = fmap Left nonImports
      <> (fmap.fmap) renderImportStmts chunkedImports
      <> leftovers
-
-main :: IO ()
-main = do
-  maybeShowVersionAndExit
-  outputLines <- reformat . lines <$> getContents
-  traverse_ putStrLn outputLines
 
 -- |divide the input into blocks while preserving the number of separators
 splitOn :: (a -> Either separator b) -> [a] -> [Either separator [b]]
