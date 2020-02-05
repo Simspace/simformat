@@ -1,4 +1,4 @@
 import Test.DocTest
 
 main :: IO ()
-main = doctest ["-XRecordWildCards", "src/SimSpace/SimFormat.hs"]
+main = doctest ["-XRecordWildCards", "-XLambdaCase", "src/SimSpace/SimFormat.hs"]

@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS -Wno-unused-matches -Wno-unused-local-binds -Wno-unused-top-binds -Wno-unused-imports #-}
 module SimSpace.SimFormat (reformat) where
 
@@ -10,13 +9,13 @@ import Data.Maybe (isJust)
 import Data.Semigroup ((<>), Semigroup)
 import Data.Set (Set)
 import Data.Void (Void)
+import Debug.Trace
+import System.Environment (getArgs)
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import Text.Printf (printf)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Debug.Trace
-import System.Environment (getArgs)
 
 type Parser = Parsec Void String
 
