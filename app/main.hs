@@ -5,7 +5,7 @@ import Data.Foldable (traverse_)
 import Data.Semigroup ((<>))
 import Data.Version (showVersion)
 import Options.Applicative (Parser, execParser, flag', fullDesc, help, helper, info, long, metavar, progDesc, short, strOption)
-import Turtle (inshell, lineToText)
+import Turtle (decodeString, inshell, liftIO, lineToText, testfile)
 import Turtle.Shell (FoldShell(FoldShell), foldShell)
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
@@ -54,9 +54,12 @@ main = execParser opts >>= \case
     StdIO               -> traverse_ putStrLn =<< reformat . lines <$> getContents
   where
     oneInPlace file = do
-      putStrLn $ "Reformatting " <> file
-      BS.writeFile file
-        =<< T.encodeUtf8 . T.pack . unlines . reformat . lines . T.unpack . T.decodeUtf8
-        <$> BS.readFile file
+      liftIO (testfile $ decodeString file) >>= \ case
+        False -> putStrLn $ "Skipping " <> file
+        True -> do
+          putStrLn $ "Reformatting " <> file
+          BS.writeFile file
+            =<< T.encodeUtf8 . T.pack . unlines . reformat . lines . T.unpack . T.decodeUtf8
+            <$> BS.readFile file
     opts = info (helper <*> parseOperation)
          $ fullDesc <> progDesc "Format the imports of a Haskell file(s)"
