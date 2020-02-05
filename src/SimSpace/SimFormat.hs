@@ -63,6 +63,7 @@ data GroupKeyType
   | NoGroupTypeKey
   | ConstructorKey String
   | NoGroupKey
+  | NoGroupPatternKey
   deriving (Show,Ord,Eq)
 
 data ImportEntry
@@ -70,6 +71,7 @@ data ImportEntry
   | ImportEntryTypeAtom String
   | ImportEntryGroup ImportGroup
   | ImportEntryAtom String
+  | ImportEntryPatternAtom String
   deriving (Show,Ord,Eq)
 
 -- | ImportGroup: something like (Monoid(mempty,mappend)) in an import
@@ -179,19 +181,20 @@ parseImportStmt = ImportStmt
 
     extractKey :: ImportEntry -> (GroupKeyType, Set String)
     extractKey (ImportEntryTypeGroup (ImportGroup k s)) = (ConstructorTypeKey k, s)
-    extractKey (ImportEntryGroup (ImportGroup k s)) = (ConstructorKey k, s)
+    extractKey (ImportEntryGroup (ImportGroup k s))     = (ConstructorKey k, s)
     extractKey (ImportEntryTypeAtom s)                  = (NoGroupTypeKey, Set.singleton s)
     extractKey (ImportEntryAtom s)                      = (NoGroupKey, Set.singleton s)
+    extractKey (ImportEntryPatternAtom s)               = (NoGroupPatternKey, Set.singleton s)
 
 parseImportEntry :: Parser ImportEntry
 parseImportEntry = do
   name <- symbol
-  if name == "type"
-  then do
-    name' <- symbol
-    ImportEntryTypeGroup <$> parseImportGroup name' <|> pure (ImportEntryTypeAtom name')
-  else do
-    ImportEntryGroup <$> parseImportGroup name <|> pure (ImportEntryAtom name)
+  case name of
+    "type" -> do
+      name' <- symbol
+      ImportEntryTypeGroup <$> parseImportGroup name' <|> pure (ImportEntryTypeAtom name')
+    "pattern" -> ImportEntryPatternAtom <$> symbol
+    _ -> ImportEntryGroup <$> parseImportGroup name <|> pure (ImportEntryAtom name)
 
 parseImportGroup :: String -> Parser ImportGroup
 parseImportGroup name = ImportGroup name . Set.fromList
@@ -332,6 +335,7 @@ chunkImportEntry (ConstructorKey importGroupName, importGroupList) =
   [importGroupName <> renderGroupList importGroupList]
 chunkImportEntry (ConstructorTypeKey importGroupName, importGroupList) =
   ["type " <> importGroupName <> renderGroupList importGroupList]
+chunkImportEntry (NoGroupPatternKey, s) = mappend "pattern " <$> Set.toAscList s
 
 renderGroupList :: Set String -> String
 renderGroupList = either id (('\n':) . intercalate "\n")
