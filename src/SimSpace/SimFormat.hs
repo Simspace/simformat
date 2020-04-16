@@ -1,8 +1,14 @@
 {-# OPTIONS -Wno-unused-matches -Wno-unused-local-binds -Wno-unused-top-binds -Wno-unused-imports #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ViewPatterns #-}
+
 module SimSpace.SimFormat (reformat) where
 
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bool (bool)
 import Data.Char (isSpace)
+import Data.Foldable (foldlM)
 import Data.List (intercalate, isPrefixOf)
 import Data.Map (Map)
 import Data.Maybe (isJust)
@@ -11,11 +17,14 @@ import Data.Set (Set)
 import Data.Void (Void)
 import Debug.Trace
 import System.Environment (getArgs)
+import System.Exit (ExitCode(ExitFailure, ExitSuccess))
+import System.Process (readProcessWithExitCode)
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import Text.Printf (printf)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 
 type Parser = Parsec Void String
 
@@ -27,6 +36,7 @@ type Parser = Parsec Void String
 newtype SortedImportStmts = SortedImportStmts
   { unSortedImportStmts :: Map (Maybe String, Bool, String, Maybe String) SortedImportList
   }
+  deriving newtype (Semigroup)
   deriving Show
 
 -- High level elements
@@ -347,13 +357,14 @@ type Block = Either BlankLine String
 type Line = String
 
 reformat
-  :: [Line]
+  :: (MonadIO m)
+  => Bool {- ^ Whether to re-group imports. -}
   -> [Line]
-reformat programLines =
+  -> m [Line]
+reformat regroup programLines = do
   let
     (nonimports, importsAndAfter) = break ("import " `isPrefixOf`) programLines
-  in
-    concatMap blockToLines . reassemble nonimports $ untilNothing processBlock (chunkedInputs importsAndAfter)
+  concatMap blockToLines <$> reassemble nonimports (untilNothing processBlock (chunkedInputs importsAndAfter))
 
   where
     blockToLines :: Block -> [String]
@@ -373,13 +384,84 @@ reformat programLines =
     processBlock (Right s) = Right <$> parseMaybe parseImportBlock s
 
     reassemble
-      :: [String]
+      :: (MonadIO m)
+      => [String]
       -> ([Either BlankLine SortedImportStmts], [Block])
-      -> [Block]
-    reassemble nonImports (chunkedImports, leftovers)
-      = fmap Left nonImports
-     <> (fmap.fmap) renderImportStmts chunkedImports
-     <> leftovers
+      -> m [Block]
+    reassemble nonImports (chunkedImports, leftovers) = do
+        rechucked <- (if regroup then rechunk else pure) chunkedImports
+        pure $
+          fmap Left nonImports
+          <> (fmap . fmap) renderImportStmts rechucked
+          <> leftovers
+      where
+        rechunk
+          :: (MonadIO m)
+          => [Either BlankLine SortedImportStmts]
+          -> m [Either BlankLine SortedImportStmts]
+        rechunk ci = do
+          x@(preludes, locals, others) <-
+            foldlM
+              insertCatagorized
+              ([], [], [])
+              (foldMap fromSortedImportStmts [ stmts | Right stmts <- ci ])
+          pure $
+            [
+              Right $ toSortedImportStmts preludes,
+              Left "",
+              Right $ toSortedImportStmts others,
+              Left "",
+              Right $ toSortedImportStmts locals,
+              Left ""
+            ]
+
+        insertCatagorized
+          :: (MonadIO m)
+          => ([ImportStmt], [ImportStmt], [ImportStmt])
+          -> ImportStmt
+          -> m ([ImportStmt], [ImportStmt], [ImportStmt])
+        insertCatagorized (preludes, locals, others) stmt =
+          categorize stmt >>= \case
+            Prelude -> pure (preludes <> [stmt], locals, others)
+            Local -> pure (preludes, locals <> [stmt], others)
+            Other -> pure (preludes, locals, others <> [stmt])
+        
+        categorize :: (MonadIO m) => ImportStmt -> m ImportCategory
+        categorize stmt
+          | importStmtModuleName stmt `contains` "Prelude" =
+              pure Prelude
+          | otherwise =
+              liftIO (
+                readProcessWithExitCode
+                  "bash"
+                  [
+                    "-c",
+                    "stack exec ghc-pkg -- find-module "
+                    <> importStmtModuleName stmt
+                    <> " | grep -v 'pkgdb$' | grep -v 'package.conf.d$' | grep -qv '(no packages)'"
+                  ]
+                  ""
+              ) >>= \case
+                (ExitSuccess, _, _) ->
+                  {- The grep statement found a package.  -}
+                  pure Other
+                (ExitFailure 1, _, _) ->
+                  {-
+                    grep exited with a exit code 1, meaning no packages were
+                    found, meaning this is an internal module.
+                  -}
+                  pure Local
+                procFailed -> fail (show procFailed)
+
+        contains :: String -> String -> Bool
+        contains (Text.pack -> haystack) (Text.pack -> needle) =
+          fst (Text.breakOn needle haystack) /= haystack
+
+
+data ImportCategory
+  = Prelude
+  | Local
+  | Other
 
 -- |divide the input into blocks while preserving the number of separators
 splitOn :: (a -> Either separator b) -> [a] -> [Either separator [b]]

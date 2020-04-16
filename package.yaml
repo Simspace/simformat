@@ -18,6 +18,7 @@ dependencies:
 - containers
 - megaparsec >= 6.0.0
 - optparse-applicative
+- process
 - text
 - turtle
 
