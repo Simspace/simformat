@@ -14,10 +14,11 @@ default-extensions:
 
 dependencies:
 - base
+- bytestring
 - containers
 - megaparsec >= 6.0.0
 - optparse-applicative
-- bytestring
+- process
 - text
 - turtle
 
