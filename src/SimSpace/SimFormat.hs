@@ -346,7 +346,9 @@ type BlankLine = String
 type Block = Either BlankLine String
 type Line = String
 
-reformat :: [Line] -> [Line]
+reformat
+  :: [Line]
+  -> [Line]
 reformat programLines =
   let
     (nonimports, importsAndAfter) = break ("import " `isPrefixOf`) programLines
@@ -370,9 +372,10 @@ reformat programLines =
     processBlock (Left  s) = pure (Left s)
     processBlock (Right s) = Right <$> parseMaybe parseImportBlock s
 
-    reassemble :: [String]
-               -> ([Either BlankLine SortedImportStmts], [Block])
-               -> [Block]
+    reassemble
+      :: [String]
+      -> ([Either BlankLine SortedImportStmts], [Block])
+      -> [Block]
     reassemble nonImports (chunkedImports, leftovers)
       = fmap Left nonImports
      <> (fmap.fmap) renderImportStmts chunkedImports

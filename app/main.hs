@@ -23,7 +23,14 @@ data Operation
   | StdIO
 
 parseOperation :: Parser Operation
-parseOperation = printVersion <|> printNumericVersion <|> inPlace <|> allDirty <|> stdIO
+parseOperation =
+    (
+      printVersion
+      <|> printNumericVersion
+      <|> inPlace
+      <|> allDirty
+      <|> stdIO
+    )
   where
     printVersion = flag' PrintVersion
       $  long "version"
