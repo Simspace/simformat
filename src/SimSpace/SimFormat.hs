@@ -389,10 +389,10 @@ reformat regroup programLines = do
       -> ([Either BlankLine SortedImportStmts], [Block])
       -> m [Block]
     reassemble nonImports (chunkedImports, leftovers) = do
-        rechucked <- (if regroup then rechunk else pure) chunkedImports
+        rechunked <- (if regroup then rechunk else pure) chunkedImports
         pure $
           fmap Left nonImports
-          <> (fmap . fmap) renderImportStmts rechucked
+          <> (fmap . fmap) renderImportStmts rechunked
           <> leftovers
       where
         rechunk
