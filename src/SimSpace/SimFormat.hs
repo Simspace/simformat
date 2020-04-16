@@ -9,7 +9,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bool (bool)
 import Data.Char (isSpace)
 import Data.Foldable (foldlM)
-import Data.List (intercalate, isPrefixOf)
+import Data.List (intercalate, isInfixOf, isPrefixOf)
 import Data.Map (Map)
 import Data.Maybe (isJust)
 import Data.Semigroup ((<>), Semigroup)
@@ -24,7 +24,6 @@ import Text.Megaparsec.Char
 import Text.Printf (printf)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.Text as Text
 
 type Parser = Parsec Void String
 
@@ -428,7 +427,7 @@ reformat regroup programLines = do
         
         categorize :: (MonadIO m) => ImportStmt -> m ImportCategory
         categorize stmt
-          | importStmtModuleName stmt `contains` "Prelude" =
+          | "Prelude" `isInfixOf` importStmtModuleName stmt =
               pure Prelude
           | otherwise =
               liftIO (
@@ -452,10 +451,6 @@ reformat regroup programLines = do
                   -}
                   pure Local
                 procFailed -> fail (show procFailed)
-
-        contains :: String -> String -> Bool
-        contains (Text.pack -> haystack) (Text.pack -> needle) =
-          fst (Text.breakOn needle haystack) /= haystack
 
 
 data ImportCategory
