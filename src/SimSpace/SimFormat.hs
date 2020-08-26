@@ -103,7 +103,7 @@ padded :: Parser a -> Parser a
 padded = between space space
 
 commaSep :: Parser a -> Parser [a]
-commaSep a = sepBy (padded a) (padded comma)
+commaSep a = sepEndBy (padded a) (padded comma)
 
 parens :: Parser a -> Parser a
 parens = between (ptoken "(") (ptoken ")")
