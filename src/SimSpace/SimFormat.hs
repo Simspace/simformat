@@ -5,6 +5,7 @@
 
 module SimSpace.SimFormat (reformat) where
 
+import Control.Monad (MonadFail)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bool (bool)
 import Data.Char (isSpace)
@@ -356,7 +357,7 @@ type Block = Either BlankLine String
 type Line = String
 
 reformat
-  :: (MonadIO m)
+  :: (MonadFail m, MonadIO m)
   => Bool {- ^ Whether to re-group imports. -}
   -> [Line]
   -> m [Line]
@@ -383,7 +384,7 @@ reformat regroup programLines = do
     processBlock (Right s) = Right <$> parseMaybe parseImportBlock s
 
     reassemble
-      :: (MonadIO m)
+      :: (MonadFail m, MonadIO m)
       => [String]
       -> ([Either BlankLine SortedImportStmts], [Block])
       -> m [Block]
@@ -395,7 +396,7 @@ reformat regroup programLines = do
           <> leftovers
       where
         rechunk
-          :: (MonadIO m)
+          :: (MonadFail m, MonadIO m)
           => [Either BlankLine SortedImportStmts]
           -> m [Either BlankLine SortedImportStmts]
         rechunk ci = do
@@ -415,7 +416,7 @@ reformat regroup programLines = do
             ]
 
         insertCatagorized
-          :: (MonadIO m)
+          :: (MonadFail m, MonadIO m)
           => ([ImportStmt], [ImportStmt], [ImportStmt])
           -> ImportStmt
           -> m ([ImportStmt], [ImportStmt], [ImportStmt])
@@ -424,8 +425,8 @@ reformat regroup programLines = do
             Prelude -> pure (preludes <> [stmt], locals, others)
             Local -> pure (preludes, locals <> [stmt], others)
             Other -> pure (preludes, locals, others <> [stmt])
-        
-        categorize :: (MonadIO m) => ImportStmt -> m ImportCategory
+
+        categorize :: (MonadFail m, MonadIO m) => ImportStmt -> m ImportCategory
         categorize stmt
           | "Prelude" `isInfixOf` importStmtModuleName stmt =
               pure Prelude
