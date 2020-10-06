@@ -1,5 +1,5 @@
 name: simformat
-version: 0.0.1.0
+version: 0.1.0.0
 
 ghc-options:
 - -Wall
@@ -16,18 +16,20 @@ dependencies:
 - base
 - bytestring
 - containers
+- directory
 - megaparsec >= 6.0.0
 - optparse-applicative
 - process
 - text
 - turtle
+- yaml
 
 library:
   source-dirs: src
 
 executables:
   simformat:
-    main: main.hs
+    main: simformat.hs
     source-dirs: app
     dependencies:
     - simformat
