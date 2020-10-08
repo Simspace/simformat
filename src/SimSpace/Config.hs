@@ -11,7 +11,7 @@ module SimSpace.Config (
 
 import Control.Monad ((>=>))
 import Data.List (isPrefixOf, isSuffixOf)
-import Data.Yaml ((.:), FromJSON, parseJSON, withObject)
+import Data.Yaml ((.!=), (.:?), FromJSON, parseJSON, withObject)
 import System.Directory (makeAbsolute, makeRelativeToCurrentDirectory)
 import System.Process (readCreateProcess, shell)
 
@@ -59,5 +59,5 @@ emptyConfig = Config
 instance FromJSON Config where
   parseJSON = withObject "Config" $ \obj ->
     Config
-      <$> obj .: "files"
-      <*> obj .: "whitelist"
+      <$> obj .:? "files" .!= configFiles emptyConfig
+      <*> obj .:? "whitelist" .!= configWhitelist emptyConfig
