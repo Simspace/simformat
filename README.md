@@ -25,11 +25,16 @@ the text on unchanged. You can always run `simformat --help` for more command-li
 $ stack install
 ```
 
+### Emacs
+
 From within Emacs, assuming you have the `haskell-mode` and `stylish-haskell` packages installed and working, `(setq
 haskell-mode-stylish-haskell-path "simformat")` and `(setq haskell-stylish-on-save t)` should automatically reformat
 your import list on every save.
 
+### Vim
+
 One possible vim solution is to add this to your `.vimrc` file:
+
 ```
 function! Write()
   if &filetype == "haskell"
@@ -48,6 +53,24 @@ If you prefer not to run code on save, you can use `shell-command-on-region` wit
 argument set, i.e. `C-u M-| simformat`
 
 From within Vim, run `:!simformat`
+
+### VSCode
+
+Add this to `~/Library/Application Settings/Code/User/settings.json` once you have installed the `Run on Save` extension.
+
+```json
+    "runOnSave.statusMessageTimeout": 3000,
+    "runOnSave.commands": [
+        {
+            "match": ".*\\.hs$",
+            "notMatch": "[\\\\\\/]_[^\\\\\\/]*\\.hs$",
+            "command": "simformat -i ${file}",
+            "runIn": "backend",
+            "runningStatusMessage": "Formatting ${fileBasename}",
+            "finishStatusMessage": "${fileBasename} formatted"
+        }
+    ]
+```
 
 ## .simformatrc example
 
