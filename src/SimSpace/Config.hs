@@ -21,12 +21,20 @@ newtype FormatFiles = FormatFiles { unFormatFiles :: [FilePath] }
   deriving (Eq, Ord, Show, FromJSON)
 
 
+{- | A newtype wrapper for files or directories we want to exclude that are otherwise included by 'FormatFiles'
+(typically generated files). -}
+newtype WhitelistFiles = WhitelistFiles { unWhitelistFiles :: [FilePath] }
+  deriving (Eq, Ord, Show, FromJSON)
+
+
 {- | Filter files in a git repository by considering the files we do want to format. Normalize the raw files. -}
-filterFiles :: FormatFiles -> IO [FilePath]
-filterFiles (FormatFiles rawFiles) = do
+filterFiles :: FormatFiles -> WhitelistFiles -> IO [FilePath]
+filterFiles (FormatFiles rawFiles) (WhitelistFiles rawWhitelist) = do
   files <- traverse (makeAbsolute >=> makeRelativeToCurrentDirectory) rawFiles
+  whitelist <- traverse (makeAbsolute >=> makeRelativeToCurrentDirectory) rawWhitelist
   let matchesFiles fp = elem "." files || any (flip isPrefixOf fp) files
-      isValid fp = isSuffixOf ".hs" fp && matchesFiles fp
+      matchesWhitelist fp = elem "." whitelist || any (flip isPrefixOf fp) whitelist
+      isValid fp = isSuffixOf ".hs" fp && matchesFiles fp && not (matchesWhitelist fp)
   filter isValid . lines <$> readCreateProcess (shell "git ls-files") ""
 
 
@@ -35,6 +43,8 @@ where the script is running. -}
 data Config = Config
   { configFiles :: FormatFiles
   {- ^ The list of files or directories to consider. -}
+  , configWhitelist :: WhitelistFiles
+  {- ^ The list of files or directories to exclude that are otherwise included by 'configFiles'. -}
   }
 
 
@@ -42,6 +52,7 @@ data Config = Config
 emptyConfig :: Config
 emptyConfig = Config
   { configFiles = FormatFiles ["."]
+  , configWhitelist = WhitelistFiles []
   }
 
 
@@ -49,3 +60,4 @@ instance FromJSON Config where
   parseJSON = withObject "Config" $ \obj ->
     Config
       <$> obj .: "files"
+      <*> obj .: "whitelist"

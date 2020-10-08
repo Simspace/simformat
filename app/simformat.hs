@@ -9,7 +9,7 @@ import Data.Maybe (catMaybes)
 import Data.Traversable (for)
 import Data.Version (showVersion)
 import Data.Yaml (decodeFileEither)
-import SimSpace.Config (Config(Config), configFiles, emptyConfig, filterFiles)
+import SimSpace.Config (Config(Config), configFiles, configWhitelist, emptyConfig, filterFiles)
 import Turtle (decodeString, liftIO, testfile)
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
@@ -106,7 +106,7 @@ main = do
     format verbose Config {..} fileMay regroup validate = do
       files <- case fileMay of
         Just file -> pure [file]
-        Nothing -> filterFiles configFiles
+        Nothing -> filterFiles configFiles configWhitelist
       inputsAndOutputs <- fmap catMaybes . for files $ \ file ->
         liftIO (testfile $ decodeString file) >>= \ case
           False -> do
