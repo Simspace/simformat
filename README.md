@@ -48,3 +48,16 @@ If you prefer not to run code on save, you can use `shell-command-on-region` wit
 argument set, i.e. `C-u M-| simformat`
 
 From within Vim, run `:!simformat`
+
+## .simformatrc example
+
+The config file, `.simformatrc`, is expected to live in the directory where the `simformat` executable is being run.
+It's a YAML file containing two keys: `files` and `whitelist`, each with a list of filepaths. If `.simformatrc` is not
+present, it will interpret `files` to be all files, and `whitelist` to be empty.
+
+```yaml
+files:
+  - foo
+whitelist:
+  - foo/bar
+```
