@@ -1,5 +1,11 @@
 name: simformat
 version: 0.1.1.0
+license: MIT
+license-file: LICENSE
+synopsis: Format Haskell source files.
+description: Format Haskell source files according to convention at SimSpace - see the README
+category: Language
+github: Simspace/simformat
 
 ghc-options:
 - -Wall
