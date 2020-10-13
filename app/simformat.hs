@@ -25,6 +25,7 @@ data Operation
   | PrintNumericVersion Bool Bool
   | InPlace FilePath Bool Bool
   | Repo Bool Bool
+  | Editor Bool Bool
 
 data Opts = Opts
   { optsConfig    :: FilePath
@@ -47,6 +48,7 @@ parseOperation =
       <|> printNumericVersion
       <|> inPlace
       <|> repo
+      <|> editor
     )
     <*> regroup
     <*> validate
@@ -64,6 +66,10 @@ parseOperation =
       <> Opt.metavar "TARGET"
       <> Opt.help "operate on a file in-place instead of reading from stdin and writing to stdout"
     repo = pure Repo
+    editor = Opt.flag' Editor
+      $  Opt.long "editor"
+      <> Opt.short 'e'
+      <> Opt.help "reads from stdin and outputs formatted to stdout (ignores --validate), for use with per-file editor integration"
 
     regroup =
       Opt.switch
@@ -87,7 +93,7 @@ parseOperation =
       Opt.switch
         (
           Opt.long "validate"
-          <> Opt.help "Validate the file(s) specified. Exits with 1 if they don't match."
+          <> Opt.help "Validate the file(s) specified. Exits with 1 if they don't match. Ignored by --editor"
         )
 
 putStrLn' :: Bool -> String -> IO ()
@@ -102,6 +108,7 @@ main = do
     PrintNumericVersion _ _       -> putStrLn $ showVersion Paths.version
     InPlace file regroup validate -> format optsVerbose config (Just file) regroup validate
     Repo regroup validate         -> format optsVerbose config Nothing regroup validate
+    Editor regroup _              -> formatStdIn regroup
   where
     format verbose Config {..} fileMay regroup validate = do
       files <- case fileMay of
@@ -127,3 +134,5 @@ main = do
           for_ inputsAndOutputs $ \ (file, _, output) -> do
             putStrLn' verbose $ "Reformatting " <> file
             BS.writeFile file output
+    formatStdIn regroup = do
+      getContents >>= reformat regroup . lines >>= putStr . unlines

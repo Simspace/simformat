@@ -28,7 +28,7 @@ $ stack install
 ### Emacs
 
 From within Emacs, assuming you have the `haskell-mode` and `stylish-haskell` packages installed and working, `(setq
-haskell-mode-stylish-haskell-path "simformat")` and `(setq haskell-stylish-on-save t)` should automatically reformat
+haskell-mode-stylish-haskell-path "simformat -e")` and `(setq haskell-stylish-on-save t)` should automatically reformat
 your import list on every save.
 
 ### Vim
@@ -39,7 +39,7 @@ One possible vim solution is to add this to your `.vimrc` file:
 function! Write()
   if &filetype == "haskell"
     let l:pos=getpos(".")
-    exe "%!simformat"
+    exe "%!simformat -e"
     call setpos(".", l:pos)
     write
   else
