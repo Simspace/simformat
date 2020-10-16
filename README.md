@@ -1,5 +1,7 @@
 # SimFormat
 
+[![Build Status](https://travis-ci.com/simspace/simformat.svg?branch=master)](https://travis-ci.com/simspace/simformat)
+
 Formats Haskell import lists.
 
 It produces import lists that look like this:
