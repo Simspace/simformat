@@ -133,11 +133,15 @@ parseList p = parens $ commaSep p
 -- |
 -- >>> parseMaybe operator "(<$>)"
 -- Just "(<$>)"
+-- >>> parseMaybe operator "(∈)"
+-- Just "(\8712)"
 operator :: Parser String
-operator = concat <$> sequence [ptoken "(", some $ oneOf symbolChars, ptoken ")"]
+operator = concat <$> sequence [ptoken "(", symbolChars, ptoken ")"]
 
-symbolChars :: String
-symbolChars = "!#$%&*+./<=>?@^|-~:\\"
+-- See https://www.haskell.org/onlinereport/haskell2010/haskellch2.html#x7-180002.4 (ascSymbol) for allowed characters in operators.
+-- Also supports unicode symbols.
+symbolChars :: Parser String
+symbolChars = some (oneOf ("!#$%&*+./<=>?@^|-~:\\" :: String)) <|> some symbolChar
 
 -- |
 -- >>> parseMaybe symbol "_Identity"
