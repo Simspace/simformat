@@ -400,20 +400,15 @@ reformat regroup programLines = do
           => [Either BlankLine SortedImportStmts]
           -> m [Either BlankLine SortedImportStmts]
         rechunk ci = do
-          x@(preludes, locals, others) <-
+          (preludes, locals, others) <-
             foldlM
               insertCatagorized
               ([], [], [])
               (foldMap fromSortedImportStmts [ stmts | Right stmts <- ci ])
-          pure $
-            [
-              Right $ toSortedImportStmts preludes,
-              Left "",
-              Right $ toSortedImportStmts others,
-              Left "",
-              Right $ toSortedImportStmts locals,
-              Left ""
-            ]
+          let ifNotEmpty p = if null p then [] else [Right $ toSortedImportStmts p, Left ""]
+          pure $ ifNotEmpty preludes
+              <> ifNotEmpty others
+              <> ifNotEmpty locals
 
         insertCatagorized
           :: (MonadFail m, MonadIO m)
