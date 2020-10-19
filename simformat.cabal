@@ -1,0 +1,88 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 92f4907758053b6c5464633fba0209ee9b9b74795a2f0e5f7060b1c4a94306eb
+
+name:           simformat
+version:        0.1.1.0
+synopsis:       Format Haskell source files.
+description:    Format Haskell source files according to convention at SimSpace - see the README
+category:       Language
+homepage:       https://github.com/Simspace/simformat#readme
+bug-reports:    https://github.com/Simspace/simformat/issues
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/Simspace/simformat
+
+library
+  exposed-modules:
+      SimSpace.Config
+      SimSpace.SimFormat
+  other-modules:
+      Paths_simformat
+  hs-source-dirs:
+      src
+  default-extensions: LambdaCase RecordWildCards OverloadedStrings
+  ghc-options: -Wall -Werror -fwarn-tabs -O2
+  build-depends:
+      base
+    , bytestring
+    , containers
+    , directory
+    , megaparsec >=6.0.0
+    , optparse-applicative
+    , process
+    , text
+    , turtle
+    , yaml
+  default-language: Haskell2010
+
+executable simformat
+  main-is: simformat.hs
+  other-modules:
+      Paths_simformat
+  hs-source-dirs:
+      app
+  default-extensions: LambdaCase RecordWildCards OverloadedStrings
+  ghc-options: -Wall -Werror -fwarn-tabs -O2
+  build-depends:
+      base
+    , bytestring
+    , containers
+    , directory
+    , megaparsec >=6.0.0
+    , optparse-applicative
+    , process
+    , simformat
+    , text
+    , turtle
+    , yaml
+  default-language: Haskell2010
+
+test-suite simformat-doctests
+  type: exitcode-stdio-1.0
+  main-is: doctests.hs
+  other-modules:
+      Paths_simformat
+  default-extensions: LambdaCase RecordWildCards OverloadedStrings
+  ghc-options: -Wall -Werror -fwarn-tabs -O2
+  build-depends:
+      base
+    , bytestring
+    , containers
+    , directory
+    , doctest
+    , megaparsec >=6.0.0
+    , optparse-applicative
+    , process
+    , text
+    , turtle
+    , yaml
+  default-language: Haskell2010
