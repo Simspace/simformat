@@ -9,7 +9,7 @@ import Data.Maybe (catMaybes)
 import Data.Traversable (for)
 import Data.Version (showVersion)
 import Data.Yaml (decodeFileEither)
-import SimSpace.Config (Config(Config), configFiles, configWhitelist, emptyConfig, filterFiles)
+import SimSpace.Config (Config(Config), FormatFiles(FormatFiles), configFiles, configWhitelist, emptyConfig, filterFiles)
 import Turtle (decodeString, liftIO, testfile)
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
@@ -64,7 +64,7 @@ parseOperation =
       $  Opt.long "in-place"
       <> Opt.short 'i'
       <> Opt.metavar "TARGET"
-      <> Opt.help "operate on a file in-place instead of reading from stdin and writing to stdout"
+      <> Opt.help "operate on a file (or all the haskell files in a directory) in-place instead of reading from stdin and writing to stdout"
     repo = pure Repo
     editor = Opt.flag' Editor
       $  Opt.long "editor"
@@ -112,7 +112,7 @@ main = do
   where
     format verbose Config {..} fileMay regroup validate = do
       files <- case fileMay of
-        Just file -> pure [file]
+        Just file -> filterFiles (FormatFiles [file]) configWhitelist
         Nothing -> filterFiles configFiles configWhitelist
       inputsAndOutputs <- fmap catMaybes . for files $ \ file ->
         liftIO (testfile $ decodeString file) >>= \ case
