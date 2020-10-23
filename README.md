@@ -56,7 +56,7 @@ From within Vim, run `:!simformat`
 
 ### VSCode
 
-Add this to `~/Library/Application Settings/Code/User/settings.json` once you have installed the `Run on Save` extension.
+Add this to `~/Library/Application Support/Code/User/settings.json` once you have installed the [Run on Save](https://github.com/pucelle/vscode-run-on-save) extension.
 
 ```json
     "runOnSave.statusMessageTimeout": 3000,
