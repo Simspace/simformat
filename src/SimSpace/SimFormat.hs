@@ -252,15 +252,18 @@ fromSortedImportStmts = map (uncurry go) . Map.toList . unSortedImportStmts
 
 -- Rendering
 
-tooLong :: String -> Bool
-tooLong line = length line > 100
-
 -- Either a string which fits on one line, or a list of lines if needed.
-renderList :: String -> (a -> String) -> [a] -> Either String [String]
-renderList indent renderItem xs0 | null xs0        = Left "()"
-                                 | tooLong oneLine = Right multiLine
-                                 | otherwise       = Left oneLine
+renderList :: Int -> String -> (a -> String) -> [a] -> Either String [String]
+renderList prefixLen indent renderItem xs0 | null xs0        = Left "()"
+                                           | tooLongSingleLine oneLine = Right multiLine
+                                           | otherwise       = Left oneLine
   where
+    tooLongSingleLine :: String -> Bool
+    tooLongSingleLine line = length line + prefixLen > 100
+
+    tooLong :: String -> Bool
+    tooLong line = length line > 100
+
     oneLine = printf "(%s)" . intercalate ", " . map renderItem $ xs0
     multiLine = go (indent <> "( ") True xs0
       where
@@ -330,29 +333,30 @@ renderList indent renderItem xs0 | null xs0        = Left "()"
 -- |import qualified Foo
 
 renderImportStmt :: ImportStmt -> String
-renderImportStmt ImportStmt {importStmtHead = ImportStmtHead {..}, importStmtImportList = importStmtImportList}
-  = (if importStmtHeadCommented then "-- " else "")
-  <> "import"
-  <> bool "" " qualified" importStmtHeadQualified
-  <> maybe "" (printf " \"%s\"") importStmtHeadPackageName
-  <> printf " %s" importStmtHeadModuleName
-  <> maybe "" (printf " as %s") importStmtHeadAlias
-  <> renderImportList importStmtImportList
+renderImportStmt ImportStmt {importStmtHead = ImportStmtHead {..}, importStmtImportList = importStmtImportList} =
+  let everythingButImports = (if importStmtHeadCommented then "-- " else "")
+                          <> "import"
+                          <> bool "" " qualified" importStmtHeadQualified
+                          <> maybe "" (printf " \"%s\"") importStmtHeadPackageName
+                          <> printf " %s" importStmtHeadModuleName
+                          <> maybe "" (printf " as %s") importStmtHeadAlias
+
+  in everythingButImports <> renderImportList (length everythingButImports) importStmtImportList
 
 renderImportStmts :: SortedImportStmts -> String
 renderImportStmts = unlines . map renderImportStmt . fromSortedImportStmts
 
-renderImportList :: SortedImportList -> String
-renderImportList = \case
+renderImportList :: Int -> SortedImportList -> String
+renderImportList prefixLen = \case
   OpenImport      -> ""
-  HidingImport h  -> " hiding" <> renderImportEntries h
-  PartialImport i -> renderImportEntries i
+  HidingImport h  -> " hiding" <> renderImportEntries (prefixLen + 7) h -- " hiding" is 7 chars
+  PartialImport i -> renderImportEntries prefixLen i
 
-renderImportEntries :: Map.Map GroupKeyType (Set String) -> String
-renderImportEntries =   either (' ':) (('\n':) . intercalate "\n")
-                    . renderList "  " id
-                    . concatMap chunkImportEntry
-                    . Map.toAscList
+renderImportEntries :: Int -> Map.Map GroupKeyType (Set String) -> String
+renderImportEntries prefixLen = either (' ':) (('\n':) . intercalate "\n")
+                              . renderList prefixLen "  " id
+                              . concatMap chunkImportEntry
+                              . Map.toAscList
 
 chunkImportEntry :: (GroupKeyType, Set String) -> [String]
 chunkImportEntry (NoGroupKey, s) = Set.toAscList s
@@ -365,7 +369,7 @@ chunkImportEntry (NoGroupPatternKey, s) = mappend "pattern " <$> Set.toAscList s
 
 renderGroupList :: Set String -> String
 renderGroupList = either id (('\n':) . intercalate "\n")
-                . renderList "    " id . Set.toAscList
+                . renderList 0 "    " id . Set.toAscList
 
 
 type BlankLine = String
