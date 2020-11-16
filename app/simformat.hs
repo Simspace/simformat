@@ -9,8 +9,10 @@ import Data.Maybe (catMaybes)
 import Data.Traversable (for)
 import Data.Version (showVersion)
 import Data.Yaml (decodeFileEither)
-import SimSpace.Config (Config(Config), FormatFiles(FormatFiles), configFiles, configWhitelist, emptyConfig, filterFiles)
-import Turtle (decodeString, liftIO, testfile)
+import SimSpace.Config
+  ( Config(Config), FormatFiles(FormatFiles), configFiles, configWhitelist, emptyConfig, filterFiles
+  )
+import Turtle (decodeString, isDirectory, liftIO, stat, testfile)
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -112,7 +114,11 @@ main = do
   where
     format verbose Config {..} fileMay regroup validate = do
       files <- case fileMay of
-        Just file -> filterFiles (FormatFiles [file]) configWhitelist
+        -- if this is an "in place" format, determine whether this is a single file or a directory so that we can avoid
+        -- calling `git` if possible (some editors, like VS Code, use a workspace so `git` commands are not available)
+        Just file -> (isDirectory <$> stat (decodeString file)) >>= \ case
+          True -> filterFiles (FormatFiles [file]) configWhitelist
+          False -> pure [file]
         Nothing -> filterFiles configFiles configWhitelist
       inputsAndOutputs <- fmap catMaybes . for files $ \ file ->
         liftIO (testfile $ decodeString file) >>= \ case
