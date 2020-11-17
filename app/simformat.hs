@@ -33,6 +33,7 @@ data Opts = Opts
   { optsConfig    :: FilePath
   , optsVerbose   :: Bool
   , optsOperation :: Operation
+  , optsAllFiles  :: Bool
   }
 
 parseArgs :: IO Opts
@@ -42,6 +43,7 @@ parseArgs = Opt.execParser (Opt.info (Opt.helper <*> parser) $ Opt.progDesc "For
       <$> Opt.strOption (Opt.long "config" <> Opt.metavar "config" <> Opt.help "Path to config" <> Opt.value ".simformatrc" <> Opt.showDefault)
       <*> Opt.switch (Opt.long "verbose" <> Opt.help "Be verbose")
       <*> parseOperation
+      <*> Opt.switch ( Opt.long "all-files" <> Opt.help "Don't filter with git, use all files" )
 
 parseOperation :: Opt.Parser Operation
 parseOperation =
@@ -108,18 +110,18 @@ main = do
   case optsOperation of
     PrintVersion _ _              -> putStrLn $ "simformat " ++ showVersion Paths.version
     PrintNumericVersion _ _       -> putStrLn $ showVersion Paths.version
-    InPlace file regroup validate -> format optsVerbose config (Just file) regroup validate
-    Repo regroup validate         -> format optsVerbose config Nothing regroup validate
+    InPlace file regroup validate -> format optsVerbose optsAllFiles config (Just file) regroup validate
+    Repo regroup validate         -> format optsVerbose optsAllFiles config Nothing regroup validate
     Editor regroup _              -> formatStdIn regroup
   where
-    format verbose Config {..} fileMay regroup validate = do
+    format verbose allFiles Config {..} fileMay regroup validate = do
       files <- case fileMay of
         -- if this is an "in place" format, determine whether this is a single file or a directory so that we can avoid
         -- calling `git` if possible (some editors, like VS Code, use a workspace so `git` commands are not available)
         Just file -> (isDirectory <$> stat (decodeString file)) >>= \ case
-          True -> filterFiles (FormatFiles [file]) configWhitelist
+          True -> filterFiles (FormatFiles [file]) configWhitelist allFiles
           False -> pure [file]
-        Nothing -> filterFiles configFiles configWhitelist
+        Nothing -> filterFiles configFiles configWhitelist allFiles
       inputsAndOutputs <- fmap catMaybes . for files $ \ file ->
         liftIO (testfile $ decodeString file) >>= \ case
           False -> do

@@ -23,6 +23,7 @@ dependencies:
 - bytestring
 - containers
 - directory
+- filepath
 - megaparsec >= 6.0.0
 - optparse-applicative
 - process
