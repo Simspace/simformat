@@ -11,9 +11,16 @@ module SimSpace.Config (
 
 import Control.Monad ((>=>))
 import Data.List (isPrefixOf, isSuffixOf)
+import Data.Set (Set)
+import Data.Traversable (for)
 import Data.Yaml ((.!=), (.:?), FromJSON, parseJSON, withObject)
-import System.Directory (makeAbsolute, makeRelativeToCurrentDirectory)
+import System.Directory
+  ( doesDirectoryExist, listDirectory, makeAbsolute, makeRelativeToCurrentDirectory
+  , pathIsSymbolicLink
+  )
+import System.FilePath ((</>))
 import System.Process (readCreateProcess, shell)
+import qualified Data.Set as Set
 
 
 {- | A newtype wrapper for files or directories we want to format. -}
@@ -28,15 +35,35 @@ newtype WhitelistFiles = WhitelistFiles { unWhitelistFiles :: [FilePath] }
 
 
 {- | Filter files in a git repository by considering the files we do want to format. Normalize the raw files. -}
-filterFiles :: FormatFiles -> WhitelistFiles -> IO [FilePath]
-filterFiles (FormatFiles rawFiles) (WhitelistFiles rawWhitelist) = do
+filterFiles :: FormatFiles -> WhitelistFiles -> Bool -> IO [FilePath]
+filterFiles (FormatFiles rawFiles) (WhitelistFiles rawWhitelist) allFiles = do
   files <- traverse (makeAbsolute >=> makeRelativeToCurrentDirectory) rawFiles
   whitelist <- traverse (makeAbsolute >=> makeRelativeToCurrentDirectory) rawWhitelist
+  hasGit <- doesDirectoryExist ".git"
   let matchesFiles fp = elem "." files || any (flip isPrefixOf fp) files
       matchesWhitelist fp = elem "." whitelist || any (flip isPrefixOf fp) whitelist
       isValid fp = isSuffixOf ".hs" fp && matchesFiles fp && not (matchesWhitelist fp)
-  filter isValid . lines <$> readCreateProcess (shell "git ls-files") ""
+      srcFiles =
+        if not hasGit || allFiles
+          then Set.toList . mconcat <$> traverse listFilesRecursive ["."]
+          else lines <$> readCreateProcess (shell "git ls-files") ""
+  filter isValid <$> srcFiles
 
+listFilesRecursive :: FilePath -> IO (Set FilePath)
+listFilesRecursive dir = do
+  dirs <- listDirectory dir
+  fmap mconcat . for dirs $ \case
+    -- don't include "hidden" directories, i.e. those that start with a '.'
+    '.' : _ -> pure Set.empty
+    fn -> do
+      let
+        path = if dir == "." then fn else dir </> fn
+      isDir <- doesDirectoryExist path
+      isSymlink <- pathIsSymbolicLink path
+      case (isSymlink, isDir) of
+        (True, _) -> pure mempty
+        (_, True) -> listFilesRecursive path
+        _ -> pure $ Set.singleton path
 
 {- | Configuration type, to be formatted from a file called `.simformatrc` typically found in the same directory as
 where the script is running. -}

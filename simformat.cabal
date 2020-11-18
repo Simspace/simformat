@@ -1,10 +1,8 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.2.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 92f4907758053b6c5464633fba0209ee9b9b74795a2f0e5f7060b1c4a94306eb
 
 name:           simformat
 version:        0.1.1.0
@@ -36,6 +34,7 @@ library
     , bytestring
     , containers
     , directory
+    , filepath
     , megaparsec >=6.0.0
     , optparse-applicative
     , process
@@ -57,6 +56,7 @@ executable simformat
     , bytestring
     , containers
     , directory
+    , filepath
     , megaparsec >=6.0.0
     , optparse-applicative
     , process
@@ -79,6 +79,7 @@ test-suite simformat-doctests
     , containers
     , directory
     , doctest
+    , filepath
     , megaparsec >=6.0.0
     , optparse-applicative
     , process
