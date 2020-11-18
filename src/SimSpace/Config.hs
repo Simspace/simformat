@@ -16,6 +16,7 @@ import Data.Traversable (for)
 import Data.Yaml ((.!=), (.:?), FromJSON, parseJSON, withObject)
 import System.Directory
   ( doesDirectoryExist, listDirectory, makeAbsolute, makeRelativeToCurrentDirectory
+  , pathIsSymbolicLink
   )
 import System.FilePath ((</>))
 import System.Process (readCreateProcess, shell)
@@ -58,9 +59,11 @@ listFilesRecursive dir = do
       let
         path = if dir == "." then fn else dir </> fn
       isDir <- doesDirectoryExist path
-      if isDir
-        then listFilesRecursive path
-        else pure . Set.singleton $ path
+      isSymlink <- pathIsSymbolicLink path
+      case (isSymlink, isDir) of
+        (True, _) -> pure mempty
+        (_, True) -> listFilesRecursive path
+        _ -> pure $ Set.singleton path
 
 {- | Configuration type, to be formatted from a file called `.simformatrc` typically found in the same directory as
 where the script is running. -}
