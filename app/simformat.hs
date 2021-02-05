@@ -9,10 +9,8 @@ import Data.Maybe (catMaybes)
 import Data.Traversable (for)
 import Data.Version (showVersion)
 import Data.Yaml (decodeFileEither)
-import SimSpace.Config
-  ( Config(Config), FormatFiles(FormatFiles), configFiles, configWhitelist, emptyConfig, filterFiles
-  )
-import Turtle (decodeString, isDirectory, liftIO, stat, testfile)
+import SimSpace.Config (Config(Config), configFiles, configWhitelist, emptyConfig, filterFiles)
+import Turtle (decodeString, liftIO, testfile)
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -25,8 +23,7 @@ import qualified Paths_simformat as Paths
 data Operation
   = PrintVersion Bool Bool
   | PrintNumericVersion Bool Bool
-  | InPlace FilePath Bool Bool
-  | Repo Bool Bool
+  | Repo [FilePath] Bool Bool
   | Editor Bool Bool
 
 data Opts = Opts
@@ -50,7 +47,6 @@ parseOperation =
     (
       printVersion
       <|> printNumericVersion
-      <|> inPlace
       <|> repo
       <|> editor
     )
@@ -64,12 +60,7 @@ parseOperation =
     printNumericVersion = Opt.flag' PrintNumericVersion
       $  Opt.long "numeric-version"
       <> Opt.help "print the version"
-    inPlace = fmap InPlace . Opt.strOption
-      $  Opt.long "in-place"
-      <> Opt.short 'i'
-      <> Opt.metavar "TARGET"
-      <> Opt.help "operate on a file (or all the haskell files in a directory) in-place instead of reading from stdin and writing to stdout"
-    repo = pure Repo
+    repo = Repo <$> Opt.many (Opt.strArgument $ Opt.metavar "FILE")
     editor = Opt.flag' Editor
       $  Opt.long "editor"
       <> Opt.short 'e'
@@ -108,20 +99,13 @@ main = do
   Opts {..} <- parseArgs
   config <- fromRight emptyConfig <$> decodeFileEither optsConfig
   case optsOperation of
-    PrintVersion _ _              -> putStrLn $ "simformat " ++ showVersion Paths.version
-    PrintNumericVersion _ _       -> putStrLn $ showVersion Paths.version
-    InPlace file regroup validate -> format optsVerbose optsAllFiles config (Just file) regroup validate
-    Repo regroup validate         -> format optsVerbose optsAllFiles config Nothing regroup validate
-    Editor regroup _              -> formatStdIn regroup
+    PrintVersion _ _               -> putStrLn $ "simformat " ++ showVersion Paths.version
+    PrintNumericVersion _ _        -> putStrLn $ showVersion Paths.version
+    Repo fileList regroup validate -> format optsVerbose optsAllFiles config fileList regroup validate
+    Editor regroup _               -> formatStdIn regroup
   where
-    format verbose allFiles Config {..} fileMay regroup validate = do
-      files <- case fileMay of
-        -- if this is an "in place" format, determine whether this is a single file or a directory so that we can avoid
-        -- calling `git` if possible (some editors, like VS Code, use a workspace so `git` commands are not available)
-        Just file -> (isDirectory <$> stat (decodeString file)) >>= \ case
-          True -> filterFiles (FormatFiles [file]) configWhitelist allFiles
-          False -> pure [file]
-        Nothing -> filterFiles configFiles configWhitelist allFiles
+    format verbose allFiles Config {..} fileList regroup validate = do
+      files <- filterFiles configFiles configWhitelist allFiles fileList
       inputsAndOutputs <- fmap catMaybes . for files $ \ file ->
         liftIO (testfile $ decodeString file) >>= \ case
           False -> do

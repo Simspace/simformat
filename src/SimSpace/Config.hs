@@ -20,6 +20,7 @@ import System.Directory
   )
 import System.FilePath ((</>))
 import System.Process (readCreateProcess, shell)
+import Turtle (decodeString, isDirectory, stat)
 import qualified Data.Set as Set
 
 
@@ -34,20 +35,33 @@ newtype WhitelistFiles = WhitelistFiles { unWhitelistFiles :: [FilePath] }
   deriving (Eq, Ord, Show, FromJSON)
 
 
-{- | Filter files in a git repository by considering the files we do want to format. Normalize the raw files. -}
-filterFiles :: FormatFiles -> WhitelistFiles -> Bool -> IO [FilePath]
-filterFiles (FormatFiles rawFiles) (WhitelistFiles rawWhitelist) allFiles = do
+loadConfig :: FormatFiles -> WhitelistFiles -> IO ([FilePath], [FilePath])
+loadConfig (FormatFiles rawFiles) (WhitelistFiles rawWhitelist) = do
   files <- traverse (makeAbsolute >=> makeRelativeToCurrentDirectory) rawFiles
   whitelist <- traverse (makeAbsolute >=> makeRelativeToCurrentDirectory) rawWhitelist
+  pure (files, whitelist)
+
+
+isValid :: [FilePath] -> [FilePath] -> FilePath -> Bool
+isValid files whitelist fp =
+  let matchesFiles = elem "." files || any (flip isPrefixOf fp) files
+      matchesWhitelist = elem "." whitelist || any (flip isPrefixOf fp) whitelist
+  in isSuffixOf ".hs" fp && matchesFiles && not matchesWhitelist
+
+
+{- | Filter files in a git repository by considering the files we do want to format. Normalize the raw files. -}
+filterFiles :: FormatFiles -> WhitelistFiles -> Bool -> [FilePath] -> IO [FilePath]
+filterFiles formatFiles whitelistFiles allFiles fileList = do
+  (files, whitelist) <- loadConfig formatFiles whitelistFiles
   hasGit <- doesDirectoryExist ".git"
-  let matchesFiles fp = elem "." files || any (flip isPrefixOf fp) files
-      matchesWhitelist fp = elem "." whitelist || any (flip isPrefixOf fp) whitelist
-      isValid fp = isSuffixOf ".hs" fp && matchesFiles fp && not (matchesWhitelist fp)
-      srcFiles =
-        if not hasGit || allFiles
-          then Set.toList . mconcat <$> traverse listFilesRecursive ["."]
-          else lines <$> readCreateProcess (shell "git ls-files") ""
-  filter isValid <$> srcFiles
+  let srcFiles = case (null fileList, not hasGit || allFiles) of
+        (True, True) -> Set.toList . mconcat <$> traverse listFilesRecursive ["."]
+        (True, False) -> lines <$> readCreateProcess (shell "git ls-files") ""
+        (False, _) -> fmap (Set.toList . mconcat) . for fileList $ \ file -> do
+          (isDirectory <$> stat (decodeString file)) >>= \ case
+            False -> pure $ Set.singleton file
+            True -> mconcat <$> traverse listFilesRecursive [file]
+  filter (isValid files whitelist) <$> srcFiles
 
 listFilesRecursive :: FilePath -> IO (Set FilePath)
 listFilesRecursive dir = do
