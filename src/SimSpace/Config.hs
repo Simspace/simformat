@@ -5,7 +5,7 @@
 {- | Description: Configuration for formatting program. -}
 module SimSpace.Config (
   Config(..), emptyConfig,
-  FormatFiles(..), filterFiles,
+  FormatFiles(..), WhitelistFiles(..), filterFiles,
 ) where
 
 
