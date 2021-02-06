@@ -3,13 +3,11 @@ module Main (main) where
 
 import Control.Applicative ((<|>))
 import Control.Monad (when)
-import Data.Either (fromRight)
 import Data.Foldable (for_)
 import Data.Maybe (catMaybes)
 import Data.Traversable (for)
 import Data.Version (showVersion)
-import Data.Yaml (decodeFileEither)
-import SimSpace.Config (Config(Config), configFiles, configWhitelist, emptyConfig, filterFiles)
+import SimSpace.Config (Config(Config), configFiles, configWhitelist, filterFiles, findConfig)
 import Turtle (decodeString, liftIO, testfile)
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
@@ -25,20 +23,20 @@ data Operation
   | PrintNumericVersion Bool Bool
   | Repo [FilePath] Bool Bool
   | Editor Bool Bool
+  deriving (Show)
 
 data Opts = Opts
-  { optsConfig    :: FilePath
-  , optsVerbose   :: Bool
+  { optsVerbose   :: Bool
   , optsOperation :: Operation
   , optsAllFiles  :: Bool
   }
+  deriving (Show)
 
 parseArgs :: IO Opts
 parseArgs = Opt.execParser (Opt.info (Opt.helper <*> parser) $ Opt.progDesc "Format some Haskell source files according to the SimSpace convention. Defaults to formatting the entire repo.")
   where
     parser = Opts
-      <$> Opt.strOption (Opt.long "config" <> Opt.metavar "config" <> Opt.help "Path to config" <> Opt.value ".simformatrc" <> Opt.showDefault)
-      <*> Opt.switch (Opt.long "verbose" <> Opt.help "Be verbose")
+      <$> Opt.switch (Opt.long "verbose" <> Opt.help "Be verbose")
       <*> parseOperation
       <*> Opt.switch ( Opt.long "all-files" <> Opt.help "Don't filter with git, use all files" )
 
@@ -97,11 +95,12 @@ putStrLn' v s = if v then putStrLn s else pure ()
 main :: IO ()
 main = do
   Opts {..} <- parseArgs
-  config <- fromRight emptyConfig <$> decodeFileEither optsConfig
   case optsOperation of
     PrintVersion _ _               -> putStrLn $ "simformat " ++ showVersion Paths.version
     PrintNumericVersion _ _        -> putStrLn $ showVersion Paths.version
-    Repo fileList regroup validate -> format optsVerbose optsAllFiles config fileList regroup validate
+    Repo fileList regroup validate -> do
+      config <- findConfig fileList
+      format optsVerbose optsAllFiles config fileList regroup validate
     Editor regroup _               -> formatStdIn regroup
   where
     format verbose allFiles Config {..} fileList regroup validate = do

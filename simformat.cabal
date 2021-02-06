@@ -1,8 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: 881fa41dfe20fc93f2b8ba09c9e7a3c5c486f1f670bb4b6648afc3da99a73d31
 
 name:           simformat
 version:        0.1.1.0
@@ -27,7 +29,7 @@ library
       Paths_simformat
   hs-source-dirs:
       src
-  default-extensions: LambdaCase RecordWildCards OverloadedStrings
+  default-extensions: LambdaCase RecordWildCards OverloadedStrings ScopedTypeVariables TupleSections
   ghc-options: -Wall -Werror -fwarn-tabs -O2
   build-depends:
       base
@@ -49,7 +51,7 @@ executable simformat
       Paths_simformat
   hs-source-dirs:
       app
-  default-extensions: LambdaCase RecordWildCards OverloadedStrings
+  default-extensions: LambdaCase RecordWildCards OverloadedStrings ScopedTypeVariables TupleSections
   ghc-options: -Wall -Werror -fwarn-tabs -O2
   build-depends:
       base
@@ -71,7 +73,7 @@ test-suite simformat-doctests
   main-is: doctests.hs
   other-modules:
       Paths_simformat
-  default-extensions: LambdaCase RecordWildCards OverloadedStrings
+  default-extensions: LambdaCase RecordWildCards OverloadedStrings ScopedTypeVariables TupleSections
   ghc-options: -Wall -Werror -fwarn-tabs -O2
   build-depends:
       base

@@ -17,6 +17,8 @@ default-extensions:
 - LambdaCase
 - RecordWildCards
 - OverloadedStrings
+- ScopedTypeVariables
+- TupleSections
 
 dependencies:
 - base
