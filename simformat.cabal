@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 881fa41dfe20fc93f2b8ba09c9e7a3c5c486f1f670bb4b6648afc3da99a73d31
+-- hash: 5c46bb332a1294b169b2b308b8ea60592fc4a23468f74be41f62016e1a1d34d7
 
 name:           simformat
 version:        0.1.1.0
@@ -87,5 +87,33 @@ test-suite simformat-doctests
     , process
     , text
     , turtle
+    , yaml
+  default-language: Haskell2010
+
+test-suite test
+  type: exitcode-stdio-1.0
+  main-is: main.hs
+  other-modules:
+      ConfigSpec
+      Paths_simformat
+  hs-source-dirs:
+      test
+  default-extensions: LambdaCase RecordWildCards OverloadedStrings ScopedTypeVariables TupleSections
+  ghc-options: -Wall -Werror -fwarn-tabs -O2
+  build-depends:
+      QuickCheck
+    , base
+    , bytestring
+    , containers
+    , directory
+    , filepath
+    , hspec
+    , megaparsec >=6.0.0
+    , optparse-applicative
+    , process
+    , simformat
+    , text
+    , turtle
+    , unliftio
     , yaml
   default-language: Haskell2010

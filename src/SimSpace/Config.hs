@@ -10,7 +10,9 @@ import Control.Exception (SomeException, try)
 import Data.List (inits, isPrefixOf, isSuffixOf)
 import Data.Set (Set)
 import Data.Traversable (for)
-import Data.Yaml ((.!=), (.:?), FromJSON, decodeFileEither, parseJSON, withObject)
+import Data.Yaml
+  ( (.!=), (.:?), (.=), FromJSON, ToJSON, decodeFileEither, object, parseJSON, toJSON, withObject
+  )
 import System.Directory (doesDirectoryExist, listDirectory, pathIsSymbolicLink)
 import System.FilePath ((</>))
 import System.Process (readCreateProcess, shell)
@@ -20,13 +22,13 @@ import qualified Data.Set as Set
 
 {- | A newtype wrapper for files or directories we want to format. -}
 newtype FormatFiles = FormatFiles { unFormatFiles :: [FilePath] }
-  deriving (Eq, Ord, Show, FromJSON)
+  deriving (Eq, Ord, Show, ToJSON, FromJSON)
 
 
 {- | A newtype wrapper for files or directories we want to exclude that are otherwise included by 'FormatFiles'
 (typically generated files). -}
 newtype WhitelistFiles = WhitelistFiles { unWhitelistFiles :: [FilePath] }
-  deriving (Eq, Ord, Show, FromJSON)
+  deriving (Eq, Ord, Show, ToJSON, FromJSON)
 
 
 isValid :: [FilePath] -> [FilePath] -> FilePath -> Bool
@@ -73,7 +75,7 @@ data Config = Config
   , configWhitelist :: WhitelistFiles
   {- ^ The list of files or directories to exclude that are otherwise included by 'configFiles'. -}
   }
-  deriving Show
+  deriving (Eq, Show)
 
 
 normalizeConfig :: FilePath -> Config -> Config
@@ -111,3 +113,10 @@ instance FromJSON Config where
     Config
       <$> obj .:? "files" .!= configFiles emptyConfig
       <*> obj .:? "whitelist" .!= configWhitelist emptyConfig
+
+
+instance ToJSON Config where
+  toJSON Config {..} = object
+    [ "files" .= configFiles
+    , "whitelist" .= configWhitelist
+    ]

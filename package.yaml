@@ -44,6 +44,16 @@ executables:
     - simformat
 
 tests:
+  test:
+    main: main.hs
+    source-dirs: test
+    dependencies:
+      - simformat
+
+      - hspec
+      - QuickCheck
+      - unliftio
+
   simformat-doctests:
     main: doctests.hs
     dependencies:
