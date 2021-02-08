@@ -3,51 +3,53 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 {- | Description: Configuration for formatting program. -}
-module SimSpace.Config (
-  Config(..), emptyConfig,
-  FormatFiles(..), filterFiles,
-) where
+module SimSpace.Config where
 
 
-import Control.Monad ((>=>))
-import Data.List (isPrefixOf, isSuffixOf)
+import Control.Exception (SomeException, try)
+import Data.List (inits, isPrefixOf, isSuffixOf)
 import Data.Set (Set)
 import Data.Traversable (for)
-import Data.Yaml ((.!=), (.:?), FromJSON, parseJSON, withObject)
-import System.Directory
-  ( doesDirectoryExist, listDirectory, makeAbsolute, makeRelativeToCurrentDirectory
-  , pathIsSymbolicLink
+import Data.Yaml
+  ( (.!=), (.:?), (.=), FromJSON, ToJSON, decodeFileEither, object, parseJSON, toJSON, withObject
   )
+import System.Directory (doesDirectoryExist, listDirectory, pathIsSymbolicLink)
 import System.FilePath ((</>))
 import System.Process (readCreateProcess, shell)
+import Turtle (commonPrefix, decodeString, encodeString, isDirectory, splitDirectories, stat)
 import qualified Data.Set as Set
 
 
 {- | A newtype wrapper for files or directories we want to format. -}
 newtype FormatFiles = FormatFiles { unFormatFiles :: [FilePath] }
-  deriving (Eq, Ord, Show, FromJSON)
+  deriving (Eq, Ord, Show, ToJSON, FromJSON)
 
 
 {- | A newtype wrapper for files or directories we want to exclude that are otherwise included by 'FormatFiles'
 (typically generated files). -}
 newtype WhitelistFiles = WhitelistFiles { unWhitelistFiles :: [FilePath] }
-  deriving (Eq, Ord, Show, FromJSON)
+  deriving (Eq, Ord, Show, ToJSON, FromJSON)
+
+
+isValid :: [FilePath] -> [FilePath] -> FilePath -> Bool
+isValid files whitelist fp =
+  let matchesFiles = elem "." files || any (flip isPrefixOf fp) files
+      matchesWhitelist = elem "." whitelist || any (flip isPrefixOf fp) whitelist
+  in isSuffixOf ".hs" fp && matchesFiles && not matchesWhitelist
 
 
 {- | Filter files in a git repository by considering the files we do want to format. Normalize the raw files. -}
-filterFiles :: FormatFiles -> WhitelistFiles -> Bool -> IO [FilePath]
-filterFiles (FormatFiles rawFiles) (WhitelistFiles rawWhitelist) allFiles = do
-  files <- traverse (makeAbsolute >=> makeRelativeToCurrentDirectory) rawFiles
-  whitelist <- traverse (makeAbsolute >=> makeRelativeToCurrentDirectory) rawWhitelist
+filterFiles :: FormatFiles -> WhitelistFiles -> Bool -> [FilePath] -> IO [FilePath]
+filterFiles (FormatFiles files) (WhitelistFiles whitelist) allFiles fileList = do
   hasGit <- doesDirectoryExist ".git"
-  let matchesFiles fp = elem "." files || any (flip isPrefixOf fp) files
-      matchesWhitelist fp = elem "." whitelist || any (flip isPrefixOf fp) whitelist
-      isValid fp = isSuffixOf ".hs" fp && matchesFiles fp && not (matchesWhitelist fp)
-      srcFiles =
-        if not hasGit || allFiles
-          then Set.toList . mconcat <$> traverse listFilesRecursive ["."]
-          else lines <$> readCreateProcess (shell "git ls-files") ""
-  filter isValid <$> srcFiles
+  let srcFiles = case (null fileList, not hasGit || allFiles) of
+        (True, True) -> Set.toList . mconcat <$> traverse listFilesRecursive ["."]
+        (True, False) -> lines <$> readCreateProcess (shell "git ls-files") ""
+        (False, _) -> fmap (Set.toList . mconcat) . for fileList $ \ file -> do
+          (isDirectory <$> stat (decodeString file)) >>= \ case
+            False -> pure $ Set.singleton file
+            True -> mconcat <$> traverse listFilesRecursive [file]
+  filter (isValid files whitelist) <$> srcFiles
 
 listFilesRecursive :: FilePath -> IO (Set FilePath)
 listFilesRecursive dir = do
@@ -73,6 +75,29 @@ data Config = Config
   , configWhitelist :: WhitelistFiles
   {- ^ The list of files or directories to exclude that are otherwise included by 'configFiles'. -}
   }
+  deriving (Eq, Show)
+
+
+normalizeConfig :: FilePath -> Config -> Config
+normalizeConfig prefix config = Config
+  { configFiles = FormatFiles $ (prefix </>) <$> unFormatFiles (configFiles config)
+  , configWhitelist = WhitelistFiles $ (prefix </>) <$> unWhitelistFiles (configWhitelist config)
+  }
+
+
+findConfig :: [FilePath] -> IO Config
+findConfig files = do
+  let dir = commonPrefix $ decodeString <$> files
+      possibleDirs = reverse . inits . splitDirectories $ dir
+      go = \ case
+        [] -> pure emptyConfig
+        x:xs -> do
+          let thisDir = mconcat (encodeString <$> x)
+          try (decodeFileEither $ thisDir </> ".simformatrc") >>= \ case
+            Left (_ :: SomeException) -> go xs
+            Right (Left _) -> go xs
+            Right (Right config) -> pure $ normalizeConfig thisDir config
+  go possibleDirs
 
 
 {- | A default, empty config in case `.simformatrc` is not provided or not found. -}
@@ -88,3 +113,10 @@ instance FromJSON Config where
     Config
       <$> obj .:? "files" .!= configFiles emptyConfig
       <*> obj .:? "whitelist" .!= configWhitelist emptyConfig
+
+
+instance ToJSON Config where
+  toJSON Config {..} = object
+    [ "files" .= configFiles
+    , "whitelist" .= configWhitelist
+    ]

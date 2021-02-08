@@ -3,16 +3,12 @@ module Main (main) where
 
 import Control.Applicative ((<|>))
 import Control.Monad (when)
-import Data.Either (fromRight)
 import Data.Foldable (for_)
 import Data.Maybe (catMaybes)
 import Data.Traversable (for)
 import Data.Version (showVersion)
-import Data.Yaml (decodeFileEither)
-import SimSpace.Config
-  ( Config(Config), FormatFiles(FormatFiles), configFiles, configWhitelist, emptyConfig, filterFiles
-  )
-import Turtle (decodeString, isDirectory, liftIO, stat, testfile)
+import SimSpace.Config (Config(Config), configFiles, configWhitelist, filterFiles, findConfig)
+import Turtle (decodeString, liftIO, testfile)
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -25,23 +21,22 @@ import qualified Paths_simformat as Paths
 data Operation
   = PrintVersion Bool Bool
   | PrintNumericVersion Bool Bool
-  | InPlace FilePath Bool Bool
-  | Repo Bool Bool
+  | Repo [FilePath] Bool Bool
   | Editor Bool Bool
+  deriving (Show)
 
 data Opts = Opts
-  { optsConfig    :: FilePath
-  , optsVerbose   :: Bool
+  { optsVerbose   :: Bool
   , optsOperation :: Operation
   , optsAllFiles  :: Bool
   }
+  deriving (Show)
 
 parseArgs :: IO Opts
 parseArgs = Opt.execParser (Opt.info (Opt.helper <*> parser) $ Opt.progDesc "Format some Haskell source files according to the SimSpace convention. Defaults to formatting the entire repo.")
   where
     parser = Opts
-      <$> Opt.strOption (Opt.long "config" <> Opt.metavar "config" <> Opt.help "Path to config" <> Opt.value ".simformatrc" <> Opt.showDefault)
-      <*> Opt.switch (Opt.long "verbose" <> Opt.help "Be verbose")
+      <$> Opt.switch (Opt.long "verbose" <> Opt.help "Be verbose")
       <*> parseOperation
       <*> Opt.switch ( Opt.long "all-files" <> Opt.help "Don't filter with git, use all files" )
 
@@ -50,7 +45,6 @@ parseOperation =
     (
       printVersion
       <|> printNumericVersion
-      <|> inPlace
       <|> repo
       <|> editor
     )
@@ -64,12 +58,7 @@ parseOperation =
     printNumericVersion = Opt.flag' PrintNumericVersion
       $  Opt.long "numeric-version"
       <> Opt.help "print the version"
-    inPlace = fmap InPlace . Opt.strOption
-      $  Opt.long "in-place"
-      <> Opt.short 'i'
-      <> Opt.metavar "TARGET"
-      <> Opt.help "operate on a file (or all the haskell files in a directory) in-place instead of reading from stdin and writing to stdout"
-    repo = pure Repo
+    repo = Repo <$> Opt.many (Opt.strArgument $ Opt.metavar "FILE")
     editor = Opt.flag' Editor
       $  Opt.long "editor"
       <> Opt.short 'e'
@@ -106,22 +95,16 @@ putStrLn' v s = if v then putStrLn s else pure ()
 main :: IO ()
 main = do
   Opts {..} <- parseArgs
-  config <- fromRight emptyConfig <$> decodeFileEither optsConfig
   case optsOperation of
-    PrintVersion _ _              -> putStrLn $ "simformat " ++ showVersion Paths.version
-    PrintNumericVersion _ _       -> putStrLn $ showVersion Paths.version
-    InPlace file regroup validate -> format optsVerbose optsAllFiles config (Just file) regroup validate
-    Repo regroup validate         -> format optsVerbose optsAllFiles config Nothing regroup validate
-    Editor regroup _              -> formatStdIn regroup
+    PrintVersion _ _               -> putStrLn $ "simformat " ++ showVersion Paths.version
+    PrintNumericVersion _ _        -> putStrLn $ showVersion Paths.version
+    Repo fileList regroup validate -> do
+      config <- findConfig fileList
+      format optsVerbose optsAllFiles config fileList regroup validate
+    Editor regroup _               -> formatStdIn regroup
   where
-    format verbose allFiles Config {..} fileMay regroup validate = do
-      files <- case fileMay of
-        -- if this is an "in place" format, determine whether this is a single file or a directory so that we can avoid
-        -- calling `git` if possible (some editors, like VS Code, use a workspace so `git` commands are not available)
-        Just file -> (isDirectory <$> stat (decodeString file)) >>= \ case
-          True -> filterFiles (FormatFiles [file]) configWhitelist allFiles
-          False -> pure [file]
-        Nothing -> filterFiles configFiles configWhitelist allFiles
+    format verbose allFiles Config {..} fileList regroup validate = do
+      files <- filterFiles configFiles configWhitelist allFiles fileList
       inputsAndOutputs <- fmap catMaybes . for files $ \ file ->
         liftIO (testfile $ decodeString file) >>= \ case
           False -> do

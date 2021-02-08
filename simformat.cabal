@@ -1,8 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: 5c46bb332a1294b169b2b308b8ea60592fc4a23468f74be41f62016e1a1d34d7
 
 name:           simformat
 version:        0.1.1.0
@@ -27,7 +29,7 @@ library
       Paths_simformat
   hs-source-dirs:
       src
-  default-extensions: LambdaCase RecordWildCards OverloadedStrings
+  default-extensions: LambdaCase RecordWildCards OverloadedStrings ScopedTypeVariables TupleSections
   ghc-options: -Wall -Werror -fwarn-tabs -O2
   build-depends:
       base
@@ -49,7 +51,7 @@ executable simformat
       Paths_simformat
   hs-source-dirs:
       app
-  default-extensions: LambdaCase RecordWildCards OverloadedStrings
+  default-extensions: LambdaCase RecordWildCards OverloadedStrings ScopedTypeVariables TupleSections
   ghc-options: -Wall -Werror -fwarn-tabs -O2
   build-depends:
       base
@@ -71,7 +73,7 @@ test-suite simformat-doctests
   main-is: doctests.hs
   other-modules:
       Paths_simformat
-  default-extensions: LambdaCase RecordWildCards OverloadedStrings
+  default-extensions: LambdaCase RecordWildCards OverloadedStrings ScopedTypeVariables TupleSections
   ghc-options: -Wall -Werror -fwarn-tabs -O2
   build-depends:
       base
@@ -85,5 +87,33 @@ test-suite simformat-doctests
     , process
     , text
     , turtle
+    , yaml
+  default-language: Haskell2010
+
+test-suite test
+  type: exitcode-stdio-1.0
+  main-is: main.hs
+  other-modules:
+      ConfigSpec
+      Paths_simformat
+  hs-source-dirs:
+      test
+  default-extensions: LambdaCase RecordWildCards OverloadedStrings ScopedTypeVariables TupleSections
+  ghc-options: -Wall -Werror -fwarn-tabs -O2
+  build-depends:
+      QuickCheck
+    , base
+    , bytestring
+    , containers
+    , directory
+    , filepath
+    , hspec
+    , megaparsec >=6.0.0
+    , optparse-applicative
+    , process
+    , simformat
+    , text
+    , turtle
+    , unliftio
     , yaml
   default-language: Haskell2010

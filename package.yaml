@@ -17,6 +17,8 @@ default-extensions:
 - LambdaCase
 - RecordWildCards
 - OverloadedStrings
+- ScopedTypeVariables
+- TupleSections
 
 dependencies:
 - base
@@ -42,6 +44,16 @@ executables:
     - simformat
 
 tests:
+  test:
+    main: main.hs
+    source-dirs: test
+    dependencies:
+      - simformat
+
+      - hspec
+      - QuickCheck
+      - unliftio
+
   simformat-doctests:
     main: doctests.hs
     dependencies:
