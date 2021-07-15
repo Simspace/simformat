@@ -38,17 +38,36 @@ your import list on every save.
 One possible vim solution is to add this to your `.vimrc` file:
 
 ```
-function! Write()
-  if &filetype == "haskell"
-    let l:pos=getpos(".")
-    exe "%!simformat -e"
-    call setpos(".", l:pos)
-    write
+function! s:RunSimformat()
+  let cmd = 'simformat -e'
+  let stdin = join(getline(1, '$'), "\n")
+  let output = system(cmd, stdin)
+  if v:shell_error != 0
+    echom output
   else
-    write
+    call s:OverwriteBuffer(output)
   endif
-endfunc
-map :w<cr> :call Write()<cr>
+endfunction
+
+function! s:OverwriteBuffer(output)
+  if &modifiable
+    let l:curw=winsaveview()
+    try | silent undojoin | catch | endtry
+    let splitted = split(a:output, '\n')
+    if line('$') > len(splitted)
+      execute len(splitted) .',$delete'
+    endif
+    call setline(1, splitted)
+    call winrestview(l:curw)
+  else
+    echom "Cannot write to non-modifiable buffer"
+  endif
+endfunction
+
+augroup Simformat
+  autocmd!
+  autocmd BufWritePre * call <SID>RunSimformat()
+augroup END
 ```
 
 If you prefer not to run code on save, you can use `shell-command-on-region` with a region active and the prefix
