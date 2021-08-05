@@ -209,7 +209,18 @@ parseImportStmt = do
     mkSortedImportList (Just _, Just _) = fail "can't specify both a hiding clause and an import clause"
 
     buildImportList :: [ImportEntry] -> Map.Map GroupKeyType (Set String)
-    buildImportList = Map.fromListWith Set.union . map extractKey
+    buildImportList = removeDups . Map.fromListWith Set.union . map extractKey
+
+    -- "import Foo (Bar(MkBar), Bar)" imports "Bar" twice, remove the second
+    removeDups :: Map GroupKeyType (Set String) -> Map GroupKeyType (Set String)
+    removeDups kss = Map.adjust (Set.\\ groupKeys) NoGroupKey kss
+      where
+        groupKeys :: Set String
+        groupKeys = Set.fromList $ concatMap onlyGroupKeys $ Map.keys kss
+
+        onlyGroupKeys :: GroupKeyType -> [String]
+        onlyGroupKeys (ConstructorKey k) = [k]
+        onlyGroupKeys _                  = []
 
     extractKey :: ImportEntry -> (GroupKeyType, Set String)
     extractKey (ImportEntryTypeGroup (ImportGroup k s)) = (ConstructorTypeKey k, s)
