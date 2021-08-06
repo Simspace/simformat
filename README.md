@@ -33,19 +33,24 @@ From within Emacs, assuming you have the `haskell-mode` and `stylish-haskell` pa
 haskell-mode-stylish-haskell-path "simformat -e")` and `(setq haskell-stylish-on-save t)` should automatically reformat
 your import list on every save.
 
+If you prefer not to run code on save, you can use `shell-command-on-region` with a region active and the prefix
+argument set, i.e. `C-u M-| simformat`
+
 ### Vim
 
 One possible vim solution is to add this to your `.vimrc` file:
 
 ```
 function! s:RunSimformat()
-  let cmd = 'simformat -e'
-  let stdin = join(getline(1, '$'), "\n")
-  let output = system(cmd, stdin)
-  if v:shell_error != 0
-    echom output
-  else
-    call s:OverwriteBuffer(output)
+  if &filetype == 'haskell'
+    let cmd = 'simformat -e'
+    let stdin = join(getline(1, '$'), "\n")
+    let output = system(cmd, stdin)
+    if v:shell_error != 0
+      echom output
+    else
+      call s:OverwriteBuffer(output)
+    endif
   endif
 endfunction
 
@@ -70,10 +75,7 @@ augroup Simformat
 augroup END
 ```
 
-If you prefer not to run code on save, you can use `shell-command-on-region` with a region active and the prefix
-argument set, i.e. `C-u M-| simformat`
-
-From within Vim, run `:!simformat`
+To format without running on save, run `:!simformat` (to format all files that are children of the `pwd`) or run `:%!simformat -e` (to format just the current file).
 
 ### VSCode
 
