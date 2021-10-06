@@ -8,7 +8,7 @@ module SimSpace.SimFormat (reformat) where
 import Control.Monad (MonadFail)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bool (bool)
-import Data.Char (isSpace)
+import Data.Char (isAlpha, isSpace)
 import Data.Foldable (foldlM)
 import Data.Function (on)
 import Data.List (groupBy, intercalate, isInfixOf, isPrefixOf, isSuffixOf, nub, sort)
@@ -420,16 +420,29 @@ reformat regroup programLines = do
           fmap (\x -> "{-# LANGUAGE " <> x <> " #-}")
             $ sort $ nub $ xs >>= getLanguages
 
-      isLanguagePragma x = "{-# LANGUAGE " `isPrefixOf` x && "#-}" `isSuffixOf` x
+      languagePragmaPrefix :: String
+      languagePragmaPrefix = "{-# LANGUAGE "
+
+      languagePragmaSuffix :: String
+      languagePragmaSuffix = "#-}"
+
+      isCommaOrSpace :: Char -> Bool
+      isCommaOrSpace c = c `elem` [',', ' ']
+
+      isLanguagePragma x =
+        languagePragmaPrefix `isPrefixOf` x
+          && languagePragmaSuffix `isSuffixOf` x
+          && all
+              (\c -> isCommaOrSpace c || isAlpha c)
+              (takeLanguagesChunk x)
+
+      takeLanguagesChunk :: String -> String
+      takeLanguagesChunk x =
+        drop (length languagePragmaPrefix)
+          $ take (length x - length languagePragmaSuffix) x
 
       getLanguages :: String -> [String]
-      getLanguages x =
-        if not (isLanguagePragma x) then
-          error $ "Input was not a language pragma: " <> show x
-        else
-          wordsWhen (`elem` (", " :: String))
-            $ drop (length ("{-# LANGUAGE" :: String))
-            $ take (length x - length ("#-}" :: String)) x
+      getLanguages = wordsWhen isCommaOrSpace . takeLanguagesChunk
 
     blockToLines :: Block -> [String]
     blockToLines (Left s) = lines (s <> "\n")
