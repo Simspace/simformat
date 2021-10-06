@@ -403,10 +403,35 @@ reformat regroup programLines = do
   where
     sortLanguagePragmas :: [String] -> [String]
     sortLanguagePragmas =
-      foldMap (\xs -> if isLanguagePragma (head xs) then sort (nub xs) else xs)
-        . groupBy (on (==) isLanguagePragma)
+      foldMap
+        (\xs ->
+            if not $ isLanguagePragma $ head xs then
+              xs
+            else
+              fmap
+                (\x -> "{-# LANGUAGE " <> x <> " #-}")
+                (sort (nub (xs >>= getLanguages)))
+        ) . groupBy (on (==) isLanguagePragma)
       where
       isLanguagePragma x = "{-# LANGUAGE " `isPrefixOf` x && "#-}" `isSuffixOf` x
+
+      getLanguages :: String -> [String]
+      getLanguages x =
+        if not (isLanguagePragma x) then
+          error $ "Input was not a language pragma: " <> show x
+        else
+          wordsWhen (`elem` (", " :: String))
+            $ drop (length ("{-# LANGUAGE" :: String))
+            $ take (length x - length ("#-}" :: String)) x
+
+      -- https://stackoverflow.com/a/4981265/1313611
+      wordsWhen :: (Char -> Bool) -> String -> [String]
+      wordsWhen p s =
+        case dropWhile p s of
+          "" -> []
+          s' ->
+            let (w, s'') = break p s'
+             in w : wordsWhen p s''
 
     blockToLines :: Block -> [String]
     blockToLines (Left s) = lines (s <> "\n")
