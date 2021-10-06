@@ -155,7 +155,7 @@ symbolChars = some (oneOf ("!#$%&*+./<=>?@^|-~:\\" :: String)) <|> some symbolCh
 -- >>> parseMaybe symbol "(<>)"
 -- Just "(<>)"
 symbol :: Parser String
-symbol = padded $ operator <|> some (alphaNumChar <|> oneOf ("._'" :: String))
+symbol = padded $ operator <|> some (alphaNumChar <|> oneOf ("._'#" :: String))
 
 -- |
 -- >>> parseMaybe packageName "simformat"
