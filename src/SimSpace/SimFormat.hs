@@ -10,7 +10,8 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bool (bool)
 import Data.Char (isSpace)
 import Data.Foldable (foldlM)
-import Data.List (intercalate, isInfixOf, isPrefixOf)
+import Data.Function (on)
+import Data.List (groupBy, intercalate, isInfixOf, isPrefixOf, isSuffixOf, nub, sort)
 import Data.Map (Map)
 import Data.Maybe (isJust)
 import Data.Semigroup ((<>), Semigroup)
@@ -382,6 +383,14 @@ renderGroupList :: Set String -> String
 renderGroupList = either id (('\n':) . intercalate "\n")
                 . renderList 0 "    " id . Set.toAscList
 
+-- https://stackoverflow.com/a/4981265/1313611
+wordsWhen :: (Char -> Bool) -> String -> [String]
+wordsWhen p s =
+  case dropWhile p s of
+    "" -> []
+    s' ->
+      let (w, s'') = break p s'
+       in w : wordsWhen p s''
 
 type BlankLine = String
 type Block = Either BlankLine String
@@ -395,9 +404,33 @@ reformat
 reformat regroup programLines = do
   let
     (nonimports, importsAndAfter) = break ("import " `isPrefixOf`) programLines
-  concatMap blockToLines <$> reassemble nonimports (untilNothing processBlock (chunkedInputs importsAndAfter))
-
+  concatMap blockToLines
+    <$> reassemble
+          (sortLanguagePragmas nonimports)
+          (untilNothing processBlock (chunkedInputs importsAndAfter))
   where
+    sortLanguagePragmas :: [String] -> [String]
+    sortLanguagePragmas =
+      foldMap go . groupBy (on (==) isLanguagePragma)
+      where
+      go xs =
+        if not $ isLanguagePragma $ head xs then
+          xs
+        else
+          fmap (\x -> "{-# LANGUAGE " <> x <> " #-}")
+            $ sort $ nub $ xs >>= getLanguages
+
+      isLanguagePragma x = "{-# LANGUAGE " `isPrefixOf` x && "#-}" `isSuffixOf` x
+
+      getLanguages :: String -> [String]
+      getLanguages x =
+        if not (isLanguagePragma x) then
+          error $ "Input was not a language pragma: " <> show x
+        else
+          wordsWhen (`elem` (", " :: String))
+            $ drop (length ("{-# LANGUAGE" :: String))
+            $ take (length x - length ("#-}" :: String)) x
+
     blockToLines :: Block -> [String]
     blockToLines (Left s) = lines (s <> "\n")
     blockToLines (Right s) = lines s
