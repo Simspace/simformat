@@ -10,7 +10,8 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bool (bool)
 import Data.Char (isSpace)
 import Data.Foldable (foldlM)
-import Data.List (intercalate, isInfixOf, isPrefixOf)
+import Data.Function (on)
+import Data.List (groupBy, intercalate, isInfixOf, isPrefixOf, isSuffixOf, sort)
 import Data.Map (Map)
 import Data.Maybe (isJust)
 import Data.Semigroup ((<>), Semigroup)
@@ -395,9 +396,18 @@ reformat
 reformat regroup programLines = do
   let
     (nonimports, importsAndAfter) = break ("import " `isPrefixOf`) programLines
-  concatMap blockToLines <$> reassemble nonimports (untilNothing processBlock (chunkedInputs importsAndAfter))
-
+  concatMap blockToLines
+    <$> reassemble
+          (sortLanguagePragmas nonimports)
+          (untilNothing processBlock (chunkedInputs importsAndAfter))
   where
+    sortLanguagePragmas :: [String] -> [String]
+    sortLanguagePragmas =
+      foldMap (\xs -> if isLanguagePragma (head xs) then sort xs else xs)
+        . groupBy (on (==) isLanguagePragma)
+      where
+      isLanguagePragma x = "{-# LANGUAGE " `isPrefixOf` x && "#-}" `isSuffixOf` x
+
     blockToLines :: Block -> [String]
     blockToLines (Left s) = lines (s <> "\n")
     blockToLines (Right s) = lines s
