@@ -383,6 +383,14 @@ renderGroupList :: Set String -> String
 renderGroupList = either id (('\n':) . intercalate "\n")
                 . renderList 0 "    " id . Set.toAscList
 
+-- https://stackoverflow.com/a/4981265/1313611
+wordsWhen :: (Char -> Bool) -> String -> [String]
+wordsWhen p s =
+  case dropWhile p s of
+    "" -> []
+    s' ->
+      let (w, s'') = break p s'
+       in w : wordsWhen p s''
 
 type BlankLine = String
 type Block = Either BlankLine String
@@ -403,16 +411,15 @@ reformat regroup programLines = do
   where
     sortLanguagePragmas :: [String] -> [String]
     sortLanguagePragmas =
-      foldMap
-        (\xs ->
-            if not $ isLanguagePragma $ head xs then
-              xs
-            else
-              fmap
-                (\x -> "{-# LANGUAGE " <> x <> " #-}")
-                (sort (nub (xs >>= getLanguages)))
-        ) . groupBy (on (==) isLanguagePragma)
+      foldMap go . groupBy (on (==) isLanguagePragma)
       where
+      go xs =
+        if not $ isLanguagePragma $ head xs then
+          xs
+        else
+          fmap (\x -> "{-# LANGUAGE " <> x <> " #-}")
+            $ sort $ nub $ xs >>= getLanguages
+
       isLanguagePragma x = "{-# LANGUAGE " `isPrefixOf` x && "#-}" `isSuffixOf` x
 
       getLanguages :: String -> [String]
@@ -423,15 +430,6 @@ reformat regroup programLines = do
           wordsWhen (`elem` (", " :: String))
             $ drop (length ("{-# LANGUAGE" :: String))
             $ take (length x - length ("#-}" :: String)) x
-
-      -- https://stackoverflow.com/a/4981265/1313611
-      wordsWhen :: (Char -> Bool) -> String -> [String]
-      wordsWhen p s =
-        case dropWhile p s of
-          "" -> []
-          s' ->
-            let (w, s'') = break p s'
-             in w : wordsWhen p s''
 
     blockToLines :: Block -> [String]
     blockToLines (Left s) = lines (s <> "\n")
