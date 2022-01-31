@@ -19,7 +19,7 @@ import Range.Shared.Types
 ## Usage
 
 By default, `simformat` formats an entire git repository using a `.simformatrc` config file in the repo root to identify
-files to include. To bypass this behavior you can call it with `-i <file>` which will format the file regardless of
+files to include. To bypass this behavior you can call it with `simformat <file>` which will format the file regardless of
 whether it's in the configuration. It should always succeed: if it cannot find any import blocks, it will simply pass
 the text on unchanged. You can always run `simformat --help` for more command-line options.
 
