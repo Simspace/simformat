@@ -87,7 +87,7 @@ Add this to `~/Library/Application Support/Code/User/settings.json` once you hav
         {
             "match": ".*\\.hs$",
             "notMatch": "[\\\\\\/]_[^\\\\\\/]*\\.hs$",
-            "command": "simformat -i ${file}",
+            "command": "simformat ${file}",
             "runIn": "backend",
             "runningStatusMessage": "Formatting ${fileBasename}",
             "finishStatusMessage": "${fileBasename} formatted"
