@@ -1,7 +1,6 @@
 {-# OPTIONS -Wno-unused-matches -Wno-unused-local-binds -Wno-unused-top-binds -Wno-unused-imports #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module SimSpace.SimFormat (reformat) where
 
@@ -254,6 +253,11 @@ toSortedImportStmts = SortedImportStmts . fmap simplify . Map.fromListWith (<>) 
       -- an empty hiding list is just an open import
       | all Set.null (Map.elems x) = OpenImport
       | otherwise = HidingImport x
+    simplify (PartialImport partial) =
+      -- this simplification is for cases where Foo(..) and Foo(Bar) have both been imported
+      -- >>> test "import Foo(Bar)\nimport Foo(..)"
+      -- import Foo(..)
+      PartialImport $ Map.map (\x -> if ".." `elem` Set.toList x then Set.fromList [".."] else x) partial
     simplify x = x
 
 fromSortedImportStmts :: SortedImportStmts -> [ImportStmt]
