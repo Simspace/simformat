@@ -2,7 +2,7 @@
 module Main (main) where
 
 import Control.Applicative ((<|>))
-import Control.Monad (when)
+import Control.Monad (unless)
 import Data.Foldable (for_)
 import Data.Maybe (catMaybes)
 import Data.Traversable (for)
@@ -119,7 +119,7 @@ main = do
         True -> do
           let failures = catMaybes . flip map inputsAndOutputs $ \ (file, input, output) ->
                 if input == output then Nothing else Just $ file <> " didn't validate"
-          when (not $ null failures) $ do
+          unless (null failures) $ do
             fail $ unlines failures
         False -> do
           for_ inputsAndOutputs $ \ (file, _, output) -> do
