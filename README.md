@@ -38,6 +38,26 @@ argument set, i.e. `C-u M-| simformat`
 
 ### Vim
 
+If you use [`null-ls.nvim`](https://github.com/jose-elias-alvarez/null-ls.nvim/) an excellent plugin for integrating external tools for formatting / diagnostics in a way compatible with neovim's builtin LSP you can use this snippet to register a source that will format Haskell files using `simformat`:
+```viml
+lua << EOF
+local null_ls = require('null-ls')
+local simformat = {
+  name = 'simformat',
+  method = null_ls.methods.FORMATTING,
+  filetypes = {'haskell'},
+  generator = require('null-ls.helpers').formatter_factory {
+    command = 'simformat',
+    args = {'-e'},
+    to_stdin = true,
+  },
+}
+null_ls.register(simformat)
+EOF
+```
+
+
+
 One possible vim solution is to add this to your `.vimrc` file:
 
 ```
