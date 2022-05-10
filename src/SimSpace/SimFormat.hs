@@ -41,11 +41,12 @@ newtype SortedImportStmts = SortedImportStmts
 -- High level elements
 
 data ImportStmtHead = ImportStmtHead
-  { importStmtHeadCommented   :: Bool
-  , importStmtHeadQualified   :: Bool
-  , importStmtHeadPackageName :: Maybe String
-  , importStmtHeadModuleName  :: String
-  , importStmtHeadAlias       :: Maybe String
+  { importStmtHeadCommented     :: Bool
+  , importStmtHeadQualified     :: Bool
+  , importStmtHeadPackageName   :: Maybe String
+  , importStmtHeadModuleName    :: String
+  , importStmtHeadPostQualified :: Bool
+  , importStmtHeadAlias         :: Maybe String
   } deriving (Eq, Show)
 
 -- This order of the tuple represents the order of the fields used when sorting.
@@ -54,7 +55,7 @@ data ImportStmtHead = ImportStmtHead
 -- Finally, the qualified imports are placed using the same order as unqualified
 -- imports.
 instance Ord ImportStmtHead where
-  ImportStmtHead c1 q1 p1 m1 a1 `compare` ImportStmtHead c2 q2 p2 m2 a2
+  ImportStmtHead c1 q1 p1 m1 r1 a1 `compare` ImportStmtHead c2 q2 p2 m2 r2 a2
     = (p1, q1, m1, a1, c1) `compare` (p2, q2, m2, a2, c2)
 
 data ImportStmt = ImportStmt
@@ -172,23 +173,25 @@ parseImportBlock = toSortedImportStmts <$> some parseImportStmt
 
 -- |
 -- >>> parseMaybe parseImportStmt "import qualified Data.Map as Map"
--- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = False, importStmtHeadQualified = True, importStmtHeadPackageName = Nothing, importStmtHeadModuleName = "Data.Map", importStmtHeadAlias = Just "Map"}, importStmtImportList = OpenImport})
+-- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = False, importStmtHeadQualified = True, importStmtHeadPackageName = Nothing, importStmtHeadModuleName = "Data.Map", importStmtHeadPostQualified = False, importStmtHeadAlias = Just "Map"}, importStmtImportList = OpenImport})
 -- >>> parseMaybe parseImportStmt "import Data.Maybe (catMaybes, fromMaybe, isJust)"
--- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = False, importStmtHeadQualified = False, importStmtHeadPackageName = Nothing, importStmtHeadModuleName = "Data.Maybe", importStmtHeadAlias = Nothing}, importStmtImportList = PartialImport (fromList [(NoGroupKey,fromList ["catMaybes","fromMaybe","isJust"])])})
+-- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = False, importStmtHeadQualified = False, importStmtHeadPackageName = Nothing, importStmtHeadModuleName = "Data.Maybe", importStmtHeadPostQualified = False, importStmtHeadAlias = Nothing}, importStmtImportList = PartialImport (fromList [(NoGroupKey,fromList ["catMaybes","fromMaybe","isJust"])])})
 -- >>> parseMaybe parseImportStmt "import Data.Monoid (Monoid(mempty, mappend), (<>))"
--- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = False, importStmtHeadQualified = False, importStmtHeadPackageName = Nothing, importStmtHeadModuleName = "Data.Monoid", importStmtHeadAlias = Nothing}, importStmtImportList = PartialImport (fromList [(ConstructorKey "Monoid",fromList ["mappend","mempty"]),(NoGroupKey,fromList ["(<>)"])])})
+-- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = False, importStmtHeadQualified = False, importStmtHeadPackageName = Nothing, importStmtHeadModuleName = "Data.Monoid", importStmtHeadPostQualified = False, importStmtHeadAlias = Nothing}, importStmtImportList = PartialImport (fromList [(ConstructorKey "Monoid",fromList ["mappend","mempty"]),(NoGroupKey,fromList ["(<>)"])])})
 -- >>> parseMaybe parseImportStmt "import Data.Monoid (Monoid(..), (<>))"
--- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = False, importStmtHeadQualified = False, importStmtHeadPackageName = Nothing, importStmtHeadModuleName = "Data.Monoid", importStmtHeadAlias = Nothing}, importStmtImportList = PartialImport (fromList [(ConstructorKey "Monoid",fromList [".."]),(NoGroupKey,fromList ["(<>)"])])})
+-- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = False, importStmtHeadQualified = False, importStmtHeadPackageName = Nothing, importStmtHeadModuleName = "Data.Monoid", importStmtHeadPostQualified = False, importStmtHeadAlias = Nothing}, importStmtImportList = PartialImport (fromList [(ConstructorKey "Monoid",fromList [".."]),(NoGroupKey,fromList ["(<>)"])])})
 -- >>> parseMaybe parseImportStmt "import OrphanInstances ()"
--- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = False, importStmtHeadQualified = False, importStmtHeadPackageName = Nothing, importStmtHeadModuleName = "OrphanInstances", importStmtHeadAlias = Nothing}, importStmtImportList = PartialImport (fromList [])})
+-- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = False, importStmtHeadQualified = False, importStmtHeadPackageName = Nothing, importStmtHeadModuleName = "OrphanInstances", importStmtHeadPostQualified = False, importStmtHeadAlias = Nothing}, importStmtImportList = PartialImport (fromList [])})
 -- >>> parseMaybe parseImportStmt "import Foo hiding (Bar, (+))"
--- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = False, importStmtHeadQualified = False, importStmtHeadPackageName = Nothing, importStmtHeadModuleName = "Foo", importStmtHeadAlias = Nothing}, importStmtImportList = HidingImport (fromList [(NoGroupKey,fromList ["(+)","Bar"])])})
+-- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = False, importStmtHeadQualified = False, importStmtHeadPackageName = Nothing, importStmtHeadModuleName = "Foo", importStmtHeadPostQualified = False, importStmtHeadAlias = Nothing}, importStmtImportList = HidingImport (fromList [(NoGroupKey,fromList ["(+)","Bar"])])})
 -- >>> parseMaybe parseImportStmt "import \"foo\" Foo"
--- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = False, importStmtHeadQualified = False, importStmtHeadPackageName = Just "foo", importStmtHeadModuleName = "Foo", importStmtHeadAlias = Nothing}, importStmtImportList = OpenImport})
+-- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = False, importStmtHeadQualified = False, importStmtHeadPackageName = Just "foo", importStmtHeadModuleName = "Foo", importStmtHeadPostQualified = False, importStmtHeadAlias = Nothing}, importStmtImportList = OpenImport})
 -- >>> parseMaybe parseImportStmt "import qualified \"foo\" Foo"
--- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = False, importStmtHeadQualified = True, importStmtHeadPackageName = Just "foo", importStmtHeadModuleName = "Foo", importStmtHeadAlias = Nothing}, importStmtImportList = OpenImport})
+-- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = False, importStmtHeadQualified = True, importStmtHeadPackageName = Just "foo", importStmtHeadModuleName = "Foo", importStmtHeadPostQualified = False, importStmtHeadAlias = Nothing}, importStmtImportList = OpenImport})
 -- >>> parseMaybe parseImportStmt "-- import qualified \"foo\" Foo"
--- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = True, importStmtHeadQualified = True, importStmtHeadPackageName = Just "foo", importStmtHeadModuleName = "Foo", importStmtHeadAlias = Nothing}, importStmtImportList = OpenImport})
+-- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = True, importStmtHeadQualified = True, importStmtHeadPackageName = Just "foo", importStmtHeadModuleName = "Foo", importStmtHeadPostQualified = False, importStmtHeadAlias = Nothing}, importStmtImportList = OpenImport})
+-- >>> parseMaybe parseImportStmt "import Data.Map qualified as Map"
+-- Just (ImportStmt {importStmtHead = ImportStmtHead {importStmtHeadCommented = False, importStmtHeadQualified = False, importStmtHeadPackageName = Nothing, importStmtHeadModuleName = "Data.Map", importStmtHeadPostQualified = True, importStmtHeadAlias = Just "Map"}, importStmtImportList = OpenImport})
 parseImportStmt :: Parser ImportStmt
 parseImportStmt = do
   importStmtHead <- ImportStmtHead
@@ -196,6 +199,7 @@ parseImportStmt = do
                 <*> (ptoken "import" *> (fmap isJust . optional $ ptoken "qualified"))
                 <*> (optional . padded $ quoted packageName)
                 <*> symbol
+                <*> (fmap isJust . optional $ ptoken "qualified")
                 <*> optional (ptoken "as" *> symbol)
   importStmtImportList <- mkSortedImportList =<<
                       (,) <$> optional (parseList parseImportEntry)
@@ -304,6 +308,8 @@ renderList prefixLen indent renderItem xs0 | null xs0        = Left "()"
 -- |import Data.Maybe (catMaybes, fromMaybe, isJust)
 -- >>> test "import OrphanInstances ()"
 -- |import OrphanInstances ()
+-- >>> test "import Data.Map qualified as Map"
+-- |import Data.Map qualified as Map
 --
 -- Longer import lists are split onto multiple lines, keeping groups together:
 --
@@ -347,6 +353,12 @@ renderList prefixLen indent renderItem xs0 | null xs0        = Left "()"
 -- |import Bar hiding (baz)
 -- |import Quux
 -- |import qualified Foo
+--
+-- Post qualified imports are sorted:
+-- >>> test "import Foo qualified\nimport Bar hiding(baz)\nimport Quux"
+-- |import Bar hiding (baz)
+-- |import Foo qualified
+-- |import Quux
 
 renderImportStmt :: ImportStmt -> String
 renderImportStmt ImportStmt {importStmtHead = ImportStmtHead {..}, importStmtImportList = importStmtImportList} =
@@ -355,6 +367,7 @@ renderImportStmt ImportStmt {importStmtHead = ImportStmtHead {..}, importStmtImp
                           <> bool "" " qualified" importStmtHeadQualified
                           <> maybe "" (printf " \"%s\"") importStmtHeadPackageName
                           <> printf " %s" importStmtHeadModuleName
+                          <> bool "" " qualified" importStmtHeadPostQualified
                           <> maybe "" (printf " as %s") importStmtHeadAlias
 
   in everythingButImports <> renderImportList (length everythingButImports) importStmtImportList
