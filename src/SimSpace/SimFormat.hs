@@ -8,6 +8,7 @@ import Control.Monad (MonadFail)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bool (bool)
 import Data.Char (isAlpha, isSpace)
+import Data.Either (rights)
 import Data.Foldable (foldlM)
 import Data.Function (on)
 import Data.List (groupBy, intercalate, isInfixOf, isPrefixOf, isSuffixOf, nub, sort)
@@ -483,12 +484,26 @@ reformat regroup programLines = do
       -> ([Either BlankLine SortedImportStmts], [Block])
       -> m [Block]
     reassemble nonImports (chunkedImports, leftovers) = do
-        rechunked <- (if regroup then rechunk else pure) chunkedImports
+        rechunked <- (if regroup then rechunk else pure) (requalify chunkedImports)
         pure $
           fmap Left nonImports
           <> (fmap . fmap) renderImportStmts rechunked
           <> leftovers
       where
+        -- If we are using post qualified imports, turn the regular qualified ones into post qualified ones
+        requalify :: [Either BlankLine SortedImportStmts] -> [Either BlankLine SortedImportStmts]
+        requalify ci
+          | any hasPostQualified (rights ci) =
+            fmap (SortedImportStmts . Map.mapKeys requalifyImportStmt . unSortedImportStmts) <$> ci
+          | otherwise = ci
+          where
+            hasPostQualified :: SortedImportStmts -> Bool
+            hasPostQualified = any importStmtHeadPostQualified . Map.keys . unSortedImportStmts
+            requalifyImportStmt :: ImportStmtHead -> ImportStmtHead
+            requalifyImportStmt stmt
+              | importStmtHeadQualified stmt = stmt {importStmtHeadQualified = False, importStmtHeadPostQualified = True}
+              | otherwise = stmt
+
         rechunk
           :: (MonadFail m, MonadIO m)
           => [Either BlankLine SortedImportStmts]
