@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -16,9 +17,12 @@ import Data.Yaml
 import System.Directory (doesDirectoryExist, listDirectory, pathIsSymbolicLink)
 import System.FilePath ((</>))
 import System.Process (readCreateProcess, shell)
+#if MIN_VERSION_turtle(1,6,0)
+import Turtle (commonPrefix, isDirectory, splitDirectories, stat)
+#else
 import Turtle (commonPrefix, decodeString, encodeString, isDirectory, splitDirectories, stat)
+#endif
 import qualified Data.Set as Set
-
 
 {- | A newtype wrapper for files or directories we want to format. -}
 newtype FormatFiles = FormatFiles { unFormatFiles :: [FilePath] }
@@ -46,7 +50,11 @@ filterFiles (FormatFiles files) (WhitelistFiles whitelist) allFiles fileList = d
         (True, True) -> Set.toList . mconcat <$> traverse listFilesRecursive ["."]
         (True, False) -> lines <$> readCreateProcess (shell "git ls-files") ""
         (False, _) -> fmap (Set.toList . mconcat) . for fileList $ \ file -> do
+#if MIN_VERSION_turtle(1,6,0)
+          (isDirectory <$> stat file) >>= \ case
+#else
           (isDirectory <$> stat (decodeString file)) >>= \ case
+#endif
             False -> pure $ Set.singleton file
             True -> mconcat <$> traverse listFilesRecursive [file]
   filter (isValid files whitelist) <$> srcFiles
@@ -87,12 +95,20 @@ normalizeConfig prefix config = Config
 
 findConfig :: [FilePath] -> IO Config
 findConfig files = do
+#if MIN_VERSION_turtle(1,6,0)
+  let dir = commonPrefix files
+#else
   let dir = commonPrefix $ decodeString <$> files
-      possibleDirs = reverse . inits . splitDirectories $ dir
-      go = \ case
+#endif
+  let possibleDirs = reverse . inits . splitDirectories $ dir
+  let go = \ case
         [] -> pure emptyConfig
         x:xs -> do
+#if MIN_VERSION_turtle(1,6,0)
+          let thisDir = mconcat x
+#else
           let thisDir = mconcat (encodeString <$> x)
+#endif
           try (decodeFileEither $ thisDir </> ".simformatrc") >>= \ case
             Left (_ :: SomeException) -> go xs
             Right (Left _) -> go xs
