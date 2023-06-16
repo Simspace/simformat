@@ -16,7 +16,7 @@ import Data.Yaml
 import System.Directory (doesDirectoryExist, listDirectory, pathIsSymbolicLink)
 import System.FilePath ((</>))
 import System.Process (readCreateProcess, shell)
-import Turtle (commonPrefix, decodeString, encodeString, isDirectory, splitDirectories, stat)
+import Turtle (commonPrefix, isDirectory, splitDirectories, stat)
 import qualified Data.Set as Set
 
 
@@ -46,7 +46,7 @@ filterFiles (FormatFiles files) (WhitelistFiles whitelist) allFiles fileList = d
         (True, True) -> Set.toList . mconcat <$> traverse listFilesRecursive ["."]
         (True, False) -> lines <$> readCreateProcess (shell "git ls-files") ""
         (False, _) -> fmap (Set.toList . mconcat) . for fileList $ \ file -> do
-          (isDirectory <$> stat (decodeString file)) >>= \ case
+          (isDirectory <$> stat file) >>= \ case
             False -> pure $ Set.singleton file
             True -> mconcat <$> traverse listFilesRecursive [file]
   filter (isValid files whitelist) <$> srcFiles
@@ -87,12 +87,12 @@ normalizeConfig prefix config = Config
 
 findConfig :: [FilePath] -> IO Config
 findConfig files = do
-  let dir = commonPrefix $ decodeString <$> files
+  let dir = commonPrefix files
       possibleDirs = reverse . inits . splitDirectories $ dir
       go = \ case
         [] -> pure emptyConfig
         x:xs -> do
-          let thisDir = mconcat (encodeString <$> x)
+          let thisDir = mconcat x
           try (decodeFileEither $ thisDir </> ".simformatrc") >>= \ case
             Left (_ :: SomeException) -> go xs
             Right (Left _) -> go xs

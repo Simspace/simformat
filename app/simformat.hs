@@ -8,7 +8,7 @@ import Data.Maybe (catMaybes)
 import Data.Traversable (for)
 import Data.Version (showVersion)
 import SimSpace.Config (Config(Config), configFiles, configWhitelist, filterFiles, findConfig)
-import Turtle (decodeString, liftIO, testfile)
+import Turtle (liftIO, testfile)
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -106,7 +106,7 @@ main = do
     format verbose allFiles Config {..} fileList regroup validate = do
       files <- filterFiles configFiles configWhitelist allFiles fileList
       inputsAndOutputs <- fmap catMaybes . for files $ \ file ->
-        liftIO (testfile $ decodeString file) >>= \ case
+        liftIO (testfile file) >>= \ case
           False -> do
             putStrLn' verbose $ "Skipping " <> file <> " because it was not in the config"
             pure Nothing
