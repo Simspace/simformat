@@ -10,7 +10,7 @@ github: Simspace/simformat
 ghc-options:
 - -Wall
 - -Werror
-- -fwarn-tabs
+- -Wtabs
 - -O2
 
 default-extensions:

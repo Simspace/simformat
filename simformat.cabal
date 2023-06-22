@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 921c5a639210d52120dc1ed6088042d9409726d44eb93ff47c8c6b2d6d84b070
+-- hash: 1dfa2675bba4e523edf025ea2ce51eccc2ccdcf728d29ba7c2097bb8a79078e5
 
 name:           simformat
 version:        0.1.1.0
@@ -35,7 +35,7 @@ library
       OverloadedStrings
       ScopedTypeVariables
       TupleSections
-  ghc-options: -Wall -Werror -fwarn-tabs -O2
+  ghc-options: -Wall -Werror -Wtabs -O2
   build-depends:
       base
     , bytestring
@@ -62,7 +62,7 @@ executable simformat
       OverloadedStrings
       ScopedTypeVariables
       TupleSections
-  ghc-options: -Wall -Werror -fwarn-tabs -O2
+  ghc-options: -Wall -Werror -Wtabs -O2
   build-depends:
       base
     , bytestring
@@ -89,7 +89,7 @@ test-suite simformat-doctests
       OverloadedStrings
       ScopedTypeVariables
       TupleSections
-  ghc-options: -Wall -Werror -fwarn-tabs -O2
+  ghc-options: -Wall -Werror -Wtabs -O2
   build-depends:
       base
     , bytestring
@@ -119,7 +119,7 @@ test-suite test
       OverloadedStrings
       ScopedTypeVariables
       TupleSections
-  ghc-options: -Wall -Werror -fwarn-tabs -O2
+  ghc-options: -Wall -Werror -Wtabs -O2
   build-depends:
       QuickCheck
     , base

@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 {-| Description: Source code for the `simformat` script, which will format and validate imports for Haskell source files. -}
 module Main (main) where
 
@@ -8,7 +10,11 @@ import Data.Maybe (catMaybes)
 import Data.Traversable (for)
 import Data.Version (showVersion)
 import SimSpace.Config (Config(Config), configFiles, configWhitelist, filterFiles, findConfig)
+#if MIN_VERSION_turtle(1,6,0)
+import Turtle (liftIO, testfile)
+#else
 import Turtle (decodeString, liftIO, testfile)
+#endif
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -106,7 +112,11 @@ main = do
     format verbose allFiles Config {..} fileList regroup validate = do
       files <- filterFiles configFiles configWhitelist allFiles fileList
       inputsAndOutputs <- fmap catMaybes . for files $ \ file ->
+#if MIN_VERSION_turtle(1,6,0)
+        liftIO (testfile file) >>= \ case
+#else
         liftIO (testfile $ decodeString file) >>= \ case
+#endif
           False -> do
             putStrLn' verbose $ "Skipping " <> file <> " because it was not in the config"
             pure Nothing
